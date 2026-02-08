@@ -67,23 +67,34 @@
         }
 
         function updateClock() {
-            const now = new Date();
-            let hours = now.getHours();
-            const mins = String(now.getMinutes()).padStart(2, '0');
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12 || 12;
-            
-            // Update time with flashing colon
-            const seconds = now.getSeconds();
-            const colonOpacity = seconds % 2 === 0 ? '1' : '0';
-            document.getElementById('clock-time').innerHTML = `${hours}<span id="clock-colon" style="opacity: ${colonOpacity}">:</span>${mins}`;
-            document.getElementById('clock-ampm').innerText = ampm;
+    	    const now = new Date();
+    	    let hours = now.getHours();
+    	    const mins = String(now.getMinutes()).padStart(2, '0');
+    	    const ampm = hours >= 12 ? 'PM' : 'AM';
+    	    hours = hours % 12 || 12;
 
-            const dayName = now.toLocaleDateString([], { weekday: 'short' });
-            const monthName = now.toLocaleDateString([], { month: 'long' });
-            const dateNum = now.getDate();
-            document.getElementById('digital-date').innerText = `${dayName} ${monthName} ${dateNum}${getOrdinal(dateNum)}`;
-        }
+    	    // Use ONLY the single 'time-text' ID we created in the last step
+    	    const timeEl = document.getElementById('time-text');
+    	    if (timeEl) {
+       	        timeEl.innerText = `${hours}:${mins}`;
+    	    }
+
+    	    const ampmEl = document.getElementById('clock-ampm');
+    	    if (ampmEl) {
+        	ampmEl.innerText = ampm;
+    	    }
+
+   	     // Date Logic
+    	    const dayName = now.toLocaleDateString([], { weekday: 'short' });
+    	    const monthName = now.toLocaleDateString([], { month: 'long' });
+    	    const dateNum = now.getDate();
+    	    const dateString = `${dayName} ${monthName} ${dateNum}${getOrdinal(dateNum)}`;
+    
+    	    const dateEl = document.getElementById('digital-date');
+    	    if (dateEl) {
+        	dateEl.innerText = dateString;
+    	    }
+	}
 
         async function updateVersion() {
             try {
