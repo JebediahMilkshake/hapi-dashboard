@@ -14,7 +14,7 @@
                     <div id="connection-warning" class="hidden"><i data-lucide="plug-zap-2"></i></div>
                 </div>
                 <div id="clock-container">
-                    <span id="clock-time">00:00</span>
+                    <span id="clock-time">00<span id="clock-colon">:</span>00</span>
                     <span id="clock-ampm">--</span>
                 </div>
                 <div id="digital-date">Loading...</div>
@@ -31,7 +31,7 @@
             <header id="weather-bar">
                 <div id="current-weather">
                     <div id="weather-main-icon"></div>
-                    <div id="weather-temp">--Â°</div>
+                    <div id="weather-temp">--°</div>
                     <div id="weather-condition">LOADING...</div>
                 </div>
                 <div id="forecast-grid"></div>
@@ -72,7 +72,11 @@
             const mins = String(now.getMinutes()).padStart(2, '0');
             const ampm = hours >= 12 ? 'PM' : 'AM';
             hours = hours % 12 || 12;
-            document.getElementById('clock-time').innerText = `${hours}:${mins}`;
+            
+            // Update time with flashing colon
+            const seconds = now.getSeconds();
+            const colonOpacity = seconds % 2 === 0 ? '1' : '0';
+            document.getElementById('clock-time').innerHTML = `${hours}<span id="clock-colon" style="opacity: ${colonOpacity}">:</span>${mins}`;
             document.getElementById('clock-ampm').innerText = ampm;
 
             const dayName = now.toLocaleDateString([], { weekday: 'short' });
@@ -124,14 +128,14 @@
 
                 // Weather & Forecast
                 document.getElementById('weather-main-icon').innerHTML = getWeatherIcon(data.weather.state, true);
-                document.getElementById('weather-temp').innerText = `${Math.round(data.weather.attributes.temperature)}Â°`;
+                document.getElementById('weather-temp').innerText = `${Math.round(data.weather.attributes.temperature)}°F`;
                 document.getElementById('weather-condition').innerText = data.weather.state.toUpperCase().replace(/-/g, ' ');
 
                 document.getElementById('forecast-grid').innerHTML = data.forecast.map(day => `
                     <div class="forecast-day">
                         <div class="f-name">${new Date(day.datetime).toLocaleDateString([], {weekday:'short'}).toUpperCase()}</div>
                         <div class="f-icon">${getWeatherIcon(day.condition)}</div>
-                        <div class="f-temp">${Math.round(day.temperature)}Â°</div>
+                        <div class="f-temp">${Math.round(day.temperature)}°F</div>
                     </div>
                 `).join('');
 
