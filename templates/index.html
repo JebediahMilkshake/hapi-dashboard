@@ -90,16 +90,17 @@
             return [...timed, ...allDay];
         }
         function getWeatherIcon(condition, isLarge = false) {
-            if(!condition) return '<i data-lucide="help-circle"></i>';
-            const icons = {
-                'sunny': 'sun', 'clearnight': 'moon', 'cloudy': 'cloud', 'fog': 'cloud-fog',
-                'hail': 'cloud-hail', 'lightning': 'zap', 'lightningrain': 'cloud-lightning',
-                'partlycloudy': 'cloud-sun', 'pouring': 'cloud-rain-wind', 'rainy': 'cloud-rain',
-                'snowy': 'cloud-snow', 'snowyrainy': 'cloud-snow', 'windy': 'wind'
-            };
+    	    if(!condition) return '<i data-lucide="help-circle"></i>';
+    	    const icons = {
+        	'sunny': 'sun', 'clearnight': 'moon', 'cloudy': 'cloud', 'fog': 'cloud-fog',
+        	'hail': 'cloud-hail', 'lightning': 'zap', 'lightningrain': 'cloud-lightning',
+        	'partlycloudy': 'cloud-sun', 'pouring': 'cloud-rain-wind', 'rainy': 'cloud-rain',
+        	'snowy': 'cloud-snow', 'snowyrainy': 'cloud-snow', 'windy': 'wind'
+    	    };
+    
             const size = isLarge ? 'style="width: 7vh; height: 7vh;"' : '';
-            return `<i data-lucide="${icons[condition.toLowerCase().replace(/-/g, '')] || 'help-circle'}" ${size}></i>`;
-        }
+    	    return `<i data-lucide="${icons[condition.toLowerCase().replace(/-/g, '')] || 'help-circle'}" ${size}></i>`;
+	}
         async function updateDashboard() {
             try {
                 const response = await fetch('/api/data');

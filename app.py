@@ -13,6 +13,10 @@ from config import *
 app = Flask(__name__)
 CORS(app)
 
+# Silence the "GET /api/data" terminal spam
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
+
 def check_for_updates():
     """Silent background update: checks GitHub at 3 AM local and restarts."""
     while True:

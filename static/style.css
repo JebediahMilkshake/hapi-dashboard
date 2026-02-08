@@ -45,20 +45,20 @@ body {
     display: flex; 
     flex-direction: column; 
     gap: 1.5vh; 
-    position: relative; /* Necessary for absolute positioning of version tag */
+    position: relative; 
+    height: 100%; /* Ensure it fills the screen height */
+    overflow: hidden; /* Prevent the sidebar itself from scrolling */
 }
 
 #version-tag { 
     position: absolute; 
-    bottom: 0.5vh; 
+    bottom: 0.2vh; 
     left: 1vh; 
-    font-size: 0.9vh; 
+    font-size: 0.8vh; 
     font-family: monospace; 
-    letter-spacing: 1px; 
-    color: var(--text-dim); /* Pulls from theme variables */
-    opacity: 0.15;           /* Makes it "ghosted" against the background */
-    pointer-events: none; 
-    user-select: none;
+    color: var(--text-dim);
+    opacity: 0.25; 
+    z-index: 10;
 }
 
 /* CLOCK & STATUS */
@@ -106,9 +106,11 @@ body {
     background: var(--bg-panel); 
     border-radius: 1.5vh; 
     padding: 2vh; 
-    flex-grow: 1; 
-    overflow-y: auto; 
+    flex: 1;          /* Grow to take space, but don't push others off */
+    min-height: 0;    /* Essential for flex-shrink to work */
+    overflow-y: auto; /* Internal scroll only */
     border: 1px solid var(--border); 
+    margin-bottom: 2vh; /* Give room for the version tag at the bottom */
 }
 
 #planner::-webkit-scrollbar { width: 0; }
@@ -178,6 +180,7 @@ body {
 .f-icon svg { 
     width: 4vh; 
     height: 4vh; 
+    stroke: var(--accent);
 }
 
 /* CALENDAR GRID */
