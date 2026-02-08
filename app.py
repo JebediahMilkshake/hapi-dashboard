@@ -47,10 +47,18 @@ def index():
 @app.route('/api/version')
 def get_version():
     try:
-        mtime = os.path.getmtime(__file__)
-        return jsonify({"version": datetime.fromtimestamp(mtime).strftime('%Y.%m.%d %H:%M')})
+        # Get the date of the last commit in YYYY.MM.DD format
+        # and the short hash (e.g., a1b2c3d)
+        cmd = ["git", "log", "-1", "--format=%cd (%h)", "--date=format:%Y.%m.%d"]
+        git_info = subprocess.check_output(cmd).decode().strip()
+        
+        response = jsonify({"version": git_info})
+        # Prevent the browser from caching the version number
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
     except:
-        return jsonify({"version": "Unknown"})
+        # Fallback if git is not initialized or fails
+        return jsonify({"version": "v1.0-local"})
 
 @app.route('/api/data')
 def get_dashboard_data():

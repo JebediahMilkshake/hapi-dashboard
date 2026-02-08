@@ -45,11 +45,17 @@ html, body {
 
 /* Version Tag Styling */
 #version-tag { 
-    position: absolute; bottom: 0.8vh; left: 1.5vh; 
-    font-size: 1.1vh; font-family: monospace; font-weight: bold;
-    color: var(--text-dim); opacity: 0.22; z-index: 10;
+    position: absolute; 
+    bottom: 0.8vh; 
+    left: 1.5vh; 
+    font-size: 1.1vh; 
+    font-family: monospace; 
+    font-weight: bold;
+    color: var(--text-dim);
+    opacity: 0.22; 
+    z-index: 10;
+    white-space: nowrap; /* Prevents the hash from wrapping to a second line */
 }
-
 /* Weather & Forecast (Horizontal Fix) */
 #weather-bar { 
     background: var(--bg-panel); border-radius: 1.5vh; height: 13vh; 

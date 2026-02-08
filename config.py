@@ -42,7 +42,7 @@ CALENDARS = [
     },
     {
         "entity": "calendar.birthdays",
-        "name": "Holidays",
+        "name": "Birthdays",
         "color_dark": "#E91E63",      # Pink
         "color_light": "#C2185B",     # Dark Pink
 	"priority": 1
