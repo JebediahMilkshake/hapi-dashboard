@@ -13,23 +13,27 @@ from config import *
 app = Flask(__name__)
 CORS(app)
 
-# ==================== AUTO-UPDATER ====================
 def check_for_updates():
-    """Silent background update: checks GitHub and restarts immediately on change."""
+    """Silent background update: checks GitHub at 3 AM local and restarts."""
     while True:
-        try:
-            subprocess.run(["git", "fetch"], check=True)
-            local = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-            remote = subprocess.check_output(["git", "rev-parse", "@{u}"]).decode().strip()
+        now = datetime.now()
+        if now.hour == 3:
+            try:
+                subprocess.run(["git", "fetch"], check=True)
+                local = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+                remote = subprocess.check_output(["git", "rev-parse", "@{u}"]).decode().strip()
 
-            if local != remote:
-                subprocess.run(["git", "pull"], check=True)
-                # Replacing current process with the new version
-                os.execv(sys.executable, ['python'] + sys.argv)
-        except Exception as e:
-            print(f"Update check failed: {e}")
-        
-        time.sleep(86400) # Wait 24 hours
+                if local != remote:
+                    subprocess.run(["git", "pull"], check=True)
+                    os.execv(sys.executable, ['python'] + sys.argv)
+            except:
+                pass 
+            time.sleep(3600)
+        else:
+            target = now.replace(hour=3, minute=0, second=0, microsecond=0)
+            if now.hour >= 3:
+                target += timedelta(days=1)
+            time.sleep((target - now).total_seconds())
 
 @app.route('/')
 def index():
@@ -37,9 +41,11 @@ def index():
 
 @app.route('/api/version')
 def get_version():
-    # Returns the last modification time of app.py as the version string
-    mtime = os.path.getmtime(__file__)
-    return jsonify({"version": datetime.fromtimestamp(mtime).strftime('%Y.%m.%d %H:%M')})
+    try:
+        mtime = os.path.getmtime(__file__)
+        return jsonify({"version": datetime.fromtimestamp(mtime).strftime('%Y.%m.%d %H:%M')})
+    except:
+        return jsonify({"version": "Unknown"})
 
 @app.route('/api/data')
 def get_dashboard_data():
@@ -47,7 +53,7 @@ def get_dashboard_data():
     theme_state = get_ha_data(f"states/{THEME_ENTITY}")
     is_dark = theme_state['state'] == 'on' if theme_state else True
 
-    legend_data = [{"name": c['name'], "color": c['color_dark' if is_dark else 'color_light']} for c in CALENDARS]
+    legend_data = [{"name": c['name'], "color": c['color_dark'] if is_dark else c['color_light']} for c in CALENDARS]
 
     forecast_data = []
     f_resp = get_ha_data("services/weather/get_forecasts?return_response", method="POST", 
@@ -64,7 +70,7 @@ def get_dashboard_data():
         events = get_ha_data(f"calendars/{cal['entity']}", data={"start": start_iso, "end": end_iso})
         if events:
             for e in events:
-                e['color'] = cal['color_dark' if is_dark else 'color_light']
+                e['color'] = cal['color_dark'] if is_dark else cal['color_light']
                 e['priority'] = cal.get('priority', 99)
                 all_events.append(e)
     
@@ -85,7 +91,7 @@ def get_ha_data(endpoint, method="GET", data=None):
         else:
             response = requests.get(url, headers=headers, params=data, timeout=10)
         return response.json() if response.status_code == 200 else None
-    except Exception as e:
+    except:
         return None
 
 def run_flask():
@@ -94,5 +100,5 @@ def run_flask():
 if __name__ == '__main__':
     threading.Thread(target=check_for_updates, daemon=True).start()
     threading.Thread(target=run_flask, daemon=True).start()
-    webview.create_window('Dashboard', 'http://127.0.0.1:5000', fullscreen=True)
+    webview.create_window('Family Dashboard', 'http://127.0.0.1:5000', fullscreen=True)
     webview.start()

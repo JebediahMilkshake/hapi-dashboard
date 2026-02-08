@@ -19,13 +19,12 @@
                 </div>
                 <div id="digital-date">Loading...</div>
             </div>
-            
             <div id="planner">
                 <h3>DAILY VIEW</h3>
                 <div id="event-list"></div>
             </div>
+            <div id="version-tag">v.----.--.--</div>
         </aside>
-
         <div id="main-column">
             <header id="weather-bar">
                 <div id="current-weather">
@@ -35,16 +34,13 @@
                 </div>
                 <div id="forecast-grid"></div>
             </header>
-
             <main id="calendar-view">
                 <h1 id="month-header"></h1>
                 <div id="grid"></div>
             </main>
-
             <footer id="docked-legend"></footer>
         </div>
     </div>
-
     <script>
         function getOrdinal(d) {
             if (d > 3 && d < 21) return 'th';
@@ -55,14 +51,12 @@
                 default: return "th";
             }
         }
-
         function getLocalDateStr(dateObj) {
             const y = dateObj.getFullYear();
             const m = String(dateObj.getMonth() + 1).padStart(2, '0');
             const d = String(dateObj.getDate()).padStart(2, '0');
             return `${y}-${m}-${d}`;
         }
-
         function updateClock() {
             const now = new Date();
             let hours = now.getHours();
@@ -71,20 +65,23 @@
             hours = hours % 12 || 12;
             document.getElementById('clock-time').innerText = `${hours}:${mins}`;
             document.getElementById('clock-ampm').innerText = ampm;
-
             const dayName = now.toLocaleDateString([], { weekday: 'short' });
             const monthName = now.toLocaleDateString([], { month: 'long' });
             const dateNum = now.getDate();
             document.getElementById('digital-date').innerText = `${dayName} ${monthName} ${dateNum}${getOrdinal(dateNum)}`;
         }
-
+        async function updateVersion() {
+            try {
+                const res = await fetch('/api/version');
+                const data = await res.json();
+                document.getElementById('version-tag').innerText = `v.${data.version}`;
+            } catch (e) {}
+        }
         function getEventDateOnly(eventTime) {
             if (eventTime.length === 10) return eventTime;
             const d = new Date(eventTime);
             return getLocalDateStr(d);
         }
-
-        // Logical Sorting: Timed (Chronological) -> All Day (Priority)
         function sortEvents(events) {
             const timed = events.filter(e => e.start.dateTime);
             const allDay = events.filter(e => e.start.date);
@@ -92,7 +89,6 @@
             allDay.sort((a, b) => (a.priority || 99) - (b.priority || 99));
             return [...timed, ...allDay];
         }
-
         function getWeatherIcon(condition, isLarge = false) {
             if(!condition) return '<i data-lucide="help-circle"></i>';
             const icons = {
@@ -104,37 +100,27 @@
             const size = isLarge ? 'style="width: 7vh; height: 7vh;"' : '';
             return `<i data-lucide="${icons[condition.toLowerCase().replace(/-/g, '')] || 'help-circle'}" ${size}></i>`;
         }
-
         async function updateDashboard() {
             try {
                 const response = await fetch('/api/data');
                 const data = await response.json();
                 document.getElementById('connection-warning').classList.add('hidden');
                 document.body.className = data.dark_mode ? '' : 'light-theme';
-
-                // Weather
                 document.getElementById('weather-main-icon').innerHTML = getWeatherIcon(data.weather.state, true);
                 document.getElementById('weather-temp').innerText = `${Math.round(data.weather.attributes.temperature)}°`;
                 document.getElementById('weather-condition').innerText = data.weather.state.toUpperCase().replace(/-/g, ' ');
-
-                // Legend
                 document.getElementById('docked-legend').innerHTML = data.legend.map(item => `
                     <div class="key-item"><span class="dot" style="background:${item.color}"></span> ${item.name.toUpperCase()}</div>
                 `).join('');
-
-                // 6-Row Grid Logic
                 const grid = document.getElementById('grid');
                 const now = new Date();
                 const todayStr = getLocalDateStr(now);
                 document.getElementById('month-header').innerText = now.toLocaleString('default', { month: 'long', year: 'numeric' }).toUpperCase();
-                
                 grid.innerHTML = '';
                 ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].forEach(d => grid.insertAdjacentHTML('beforeend', `<div class="day-header">${d}</div>`));
-
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
                 let startDayOfWeek = startOfMonth.getDay();
-                if (startDayOfWeek === 0) startDayOfWeek = 7; // Edge case: start on Sunday
-                
+                if (startDayOfWeek === 0) startDayOfWeek = 7; 
                 const calendarDays = [];
                 for (let i = startDayOfWeek; i > 0; i--) {
                     const d = new Date(now.getFullYear(), now.getMonth(), 1 - i);
@@ -149,25 +135,20 @@
                     const d = new Date(now.getFullYear(), now.getMonth() + 1, i);
                     calendarDays.push({ d: d.getDate(), m: d.getMonth(), y: d.getFullYear(), current: false });
                 }
-
                 calendarDays.forEach(day => {
                     const dStr = `${day.y}-${String(day.m+1).padStart(2,'0')}-${String(day.d).padStart(2,'0')}`;
                     const dayEvents = sortEvents(data.events.filter(e => getEventDateOnly(e.start.date || e.start.dateTime) === dStr));
-                    
                     let eventHtml = dayEvents.slice(0, 4).map(e => {
                         const time = e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}).replace(' ', '').toLowerCase() : '';
                         const isAllDay = e.start.date ? 'all-day-row' : '';
                         return `<div class="cell-event ${isAllDay}" style="border-left-color:${e.color}"><span class="cell-time">${time}</span> ${e.summary}</div>`;
                     }).join('');
-
                     grid.insertAdjacentHTML('beforeend', `
                         <div class="day-cell ${!day.current ? 'other-month' : ''} ${dStr === todayStr ? 'today' : ''}">
                             <div class="day-number">${day.d}</div>
                             <div class="cell-events">${eventHtml}</div>
                         </div>`);
                 });
-
-                // Planner Restored
                 const eventList = document.getElementById('event-list');
                 eventList.innerHTML = '';
                 for (let i = 0; i < 7; i++) {
@@ -182,8 +163,6 @@
                         eventList.insertAdjacentHTML('beforeend', `<div class="event-item" style="border-left-color:${e.color}"><div class="time">${time}</div><div class="title">${e.summary}</div></div>`);
                     });
                 }
-
-                // Forecast
                 document.getElementById('forecast-grid').innerHTML = data.forecast.map(day => `
                     <div class="forecast-day">
                         <div class="f-name">${new Date(day.datetime).toLocaleDateString([], {weekday:'short'}).toUpperCase()}</div>
@@ -191,7 +170,6 @@
                         <div class="f-temp">${Math.round(day.temperature)}°</div>
                     </div>
                 `).join('');
-
                 lucide.createIcons();
             } catch (e) { 
                 document.getElementById('connection-warning').classList.remove('hidden');
@@ -200,7 +178,7 @@
         }
         setInterval(updateClock, 1000);
         setInterval(updateDashboard, 30000);
-        updateClock(); updateDashboard();
+        updateClock(); updateDashboard(); updateVersion();
     </script>
 </body>
 </html>
