@@ -1,33 +1,21 @@
 :root {
-    /* Theme Variables */
-    --bg-main: #121212; 
-    --bg-panel: #1e1e1e; 
-    --bg-element: #2a2a2a;
-    --text-primary: #ffffff; 
-    --text-dim: #888888; 
-    --accent: #2196F3; 
-    --border: #333333;
+    --bg-main: #121212; --bg-panel: #1e1e1e; --bg-element: #2a2a2a;
+    --text-primary: #ffffff; --text-dim: #888888; --accent: #2196F3; --border: #333333;
 }
-
 body.light-theme {
-    --bg-main: #f4f7f6; 
-    --bg-panel: #ffffff; 
-    --bg-element: #e9ecef;
-    --text-primary: #212529; 
-    --text-dim: #6c757d; 
-    --accent: #007bff; 
-    --border: #dee2e6;
+    --bg-main: #f4f7f6; --bg-panel: #ffffff; --bg-element: #e9ecef;
+    --text-primary: #212529; --text-dim: #6c757d; --accent: #007bff; --border: #dee2e6;
 }
 
-/* 1. GLOBAL & KIOSK SETTINGS */
+/* Kiosk Cursor Hiding - Forced on all elements */
 * { 
     box-sizing: border-box; 
     margin: 0; 
     padding: 0; 
+    cursor: none !important; 
 }
 
 html, body { 
-    cursor: none !important; /* Hide cursor for headless mode */
     background: var(--bg-main); 
     color: var(--text-primary); 
     font-family: sans-serif; 
@@ -37,14 +25,9 @@ html, body {
     padding: 1.5vh; 
 }
 
-#dashboard-layout { 
-    display: flex; 
-    gap: 2vh; 
-    height: 100%; 
-    width: 100%;
-}
+#dashboard-layout { display: flex; gap: 2vh; height: 100%; width: 100%; }
 
-/* 2. SIDEBAR (20% WIDTH) */
+/* SIDEBAR: Locked at 20% */
 #sidebar { 
     width: 20%; 
     display: flex; 
@@ -55,7 +38,7 @@ html, body {
 }
 
 #clock-section { 
-    flex-shrink: 0; /* Prevents clock from collapsing */
+    flex-shrink: 0; 
     background: var(--bg-panel); 
     border-radius: 1.5vh; 
     padding: 2.5vh; 
@@ -63,68 +46,37 @@ html, body {
     border: 1px solid var(--border); 
 }
 
-#clock-time { 
-    font-size: 7.5vh; 
-    font-weight: 900; 
-    color: var(--accent); 
-    line-height: 1; 
-}
-
-#digital-date { 
-    font-size: 2.2vh; 
-    font-weight: 700; 
-    color: var(--text-dim); 
-    margin-top: 0.5vh; 
-}
+#clock-time { font-size: 7.5vh; font-weight: 900; color: var(--accent); line-height: 1; }
+#digital-date { font-size: 2.2vh; font-weight: 700; color: var(--text-dim); margin-top: 0.5vh; }
 
 #planner { 
-    background: var(--bg-panel); 
-    border-radius: 1.5vh; 
-    padding: 2vh; 
-    flex: 1;          /* Takes remaining space */
-    min-height: 0;    /* Allows flex-shrink to work */
-    overflow-y: auto; 
-    border: 1px solid var(--border); 
-    margin-bottom: 4vh; /* Room for version tag */
+    background: var(--bg-panel); border-radius: 1.5vh; padding: 2vh; 
+    flex: 1; min-height: 0; overflow-y: auto; border: 1px solid var(--border); 
+    margin-bottom: 4vh; 
     scrollbar-width: none;
 }
 #planner::-webkit-scrollbar { display: none; }
 
 .planner-date-header { 
-    color: var(--accent); 
-    font-size: 1.5vh; 
-    font-weight: bold; 
-    margin-top: 1.5vh; 
-    border-bottom: 1px solid var(--border); 
-    padding-bottom: 0.3vh;
+    color: var(--accent); font-size: 1.5vh; font-weight: bold; 
+    margin-top: 1.5vh; border-bottom: 1px solid var(--border); padding-bottom: 0.3vh;
 }
 
 .event-item { 
-    display: block; 
-    background: var(--bg-element); 
-    margin-top: 0.8vh; 
-    padding: 1vh; 
-    border-radius: 0.5vh; 
-    border-left: 0.6vh solid; 
+    display: block; background: var(--bg-element); margin-top: 0.8vh; 
+    padding: 1vh; border-radius: 0.5vh; border-left: 0.6vh solid; 
 }
-
 .event-item .time { font-size: 1.1vh; font-weight: bold; color: var(--text-dim); display: block; }
 .event-item .title { font-size: 1.5vh; font-weight: bold; display: block; }
 
 #version-tag { 
-    position: absolute; 
-    bottom: 0.8vh; 
-    left: 1.5vh; 
-    font-size: 1.2vh; /* Slightly larger as requested */
-    font-family: monospace; 
-    font-weight: bold;
-    color: var(--text-dim); 
-    opacity: 0.22; 
-    z-index: 10;
+    position: absolute; bottom: 0.8vh; left: 1.5vh; 
+    font-size: 1.2vh; font-family: monospace; font-weight: bold;
+    color: var(--text-dim); opacity: 0.22; z-index: 10;
     white-space: nowrap;
 }
 
-/* 3. MAIN COLUMN (80% WIDTH) */
+/* MAIN COLUMN: Locked at 80% */
 #main-column { 
     width: 80%; 
     display: flex; 
@@ -133,115 +85,40 @@ html, body {
     min-width: 0; 
 }
 
-/* WEATHER BAR */
 #weather-bar { 
-    background: var(--bg-panel); 
-    border-radius: 1.5vh; 
-    height: 13vh; 
-    display: flex; 
-    align-items: center; 
-    padding: 0 3vh; 
-    border: 1px solid var(--border); 
+    background: var(--bg-panel); border-radius: 1.5vh; height: 13vh; 
+    display: flex; align-items: center; padding: 0 3vh; border: 1px solid var(--border); 
 }
-
-#current-weather { 
-    display: flex; 
-    align-items: center; 
-    gap: 2vh; 
-    border-right: 1px solid var(--border); 
-    padding-right: 3vh; 
-}
-
+#current-weather { display: flex; align-items: center; gap: 2vh; border-right: 1px solid var(--border); padding-right: 3vh; }
 #weather-temp { font-size: 6vh; font-weight: 900; }
 
-#forecast-grid { 
-    display: flex; 
-    flex-direction: row; /* Horizontal Fix */
-    flex-grow: 1; 
-    justify-content: space-around; 
-    align-items: center; 
-}
+#forecast-grid { display: flex; flex-direction: row; flex-grow: 1; justify-content: space-around; align-items: center; }
+.forecast-day { display: flex; flex-direction: column; align-items: center; gap: 0.5vh; }
 
-.forecast-day { 
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    gap: 0.5vh; 
-}
+#weather-main-icon svg, .f-icon svg { stroke: var(--accent) !important; stroke-width: 2.5; }
 
-/* ICON COLORS */
-#weather-main-icon svg, 
-.f-icon svg { 
-    stroke: var(--accent) !important; 
-    stroke-width: 2.5; 
-}
-
-/* CALENDAR VIEW */
 #calendar-view { 
-    flex: 1; 
-    background: var(--bg-panel); 
-    border-radius: 1.5vh; 
-    padding: 1.5vh; 
-    display: flex; 
-    flex-direction: column; 
-    border: 1px solid var(--border); 
-    min-height: 0;
+    flex: 1; background: var(--bg-panel); border-radius: 1.5vh; 
+    padding: 1.5vh; display: flex; flex-direction: column; 
+    border: 1px solid var(--border); min-height: 0;
 }
 
 #grid { 
-    display: grid; 
-    grid-template-columns: repeat(7, 1fr); 
+    display: grid; grid-template-columns: repeat(7, 1fr); 
     grid-template-rows: 3vh repeat(6, 1fr); 
-    gap: 0.6vh; 
-    flex-grow: 1; 
+    gap: 0.6vh; flex-grow: 1; 
 }
 
 .day-header { font-size: 1.2vh; font-weight: 800; color: var(--text-dim); text-align: center; }
-
-.day-cell { 
-    background: var(--bg-element); 
-    border-radius: 0.8vh; 
-    padding: 0.5vh; 
-    overflow: hidden; 
-    height: 100%; 
-    display: flex; 
-    flex-direction: column; 
-}
-
-.day-cell.today { 
-    border: 2.5px solid var(--accent); 
-    background: rgba(33, 150, 243, 0.05); 
-}
-
+.day-cell { background: var(--bg-element); border-radius: 0.8vh; padding: 0.5vh; overflow: hidden; height: 100%; display: flex; flex-direction: column; }
+.day-cell.today { border: 2.5px solid var(--accent); background: rgba(33, 150, 243, 0.05); }
 .day-cell.other-month { opacity: 0.2; filter: grayscale(1); }
 
-/* CALENDAR EVENTS */
-.cell-event { 
-    font-size: 1.25vh; 
-    font-weight: 700; 
-    border-left: 0.4vh solid; 
-    padding-left: 0.4vh; 
-    margin-bottom: 0.2vh; 
-    white-space: nowrap; 
-    overflow: hidden; 
-    text-overflow: ellipsis; 
-    background: rgba(0,0,0,0.1); 
-}
-
+.cell-event { font-size: 1.25vh; font-weight: 700; border-left: 0.4vh solid; padding-left: 0.4vh; margin-bottom: 0.2vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(0,0,0,0.1); }
 .cell-event.all-day-row { font-style: italic; background: rgba(255, 255, 255, 0.03); }
 .cell-event.all-day-row:first-of-type { margin-top: auto; }
 
-/* LEGEND & UTILS */
-#docked-legend { 
-    background: var(--bg-panel); 
-    border-radius: 1.5vh; 
-    padding: 1.2vh; 
-    display: flex; 
-    justify-content: center; 
-    gap: 4vh; 
-    border: 1px solid var(--border); 
-}
-
+#docked-legend { background: var(--bg-panel); border-radius: 1.5vh; padding: 1.2vh; display: flex; justify-content: center; gap: 4vh; border: 1px solid var(--border); }
 .key-item { display: flex; align-items: center; gap: 1vh; font-size: 1.4vh; font-weight: 900; }
 .dot { width: 1.2vh; height: 1.2vh; border-radius: 50%; }
 

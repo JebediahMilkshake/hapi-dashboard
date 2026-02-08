@@ -21,7 +21,6 @@
             </div>
             
             <div id="planner">
-                <h3>DAILY VIEW</h3>
                 <div id="event-list"></div>
             </div>
             
@@ -48,7 +47,6 @@
     </div>
 
     <script>
-        // Disable right-click for kiosk mode
         document.addEventListener('contextmenu', event => event.preventDefault());
 
         function getOrdinal(d) {
@@ -88,7 +86,7 @@
                 const res = await fetch('/api/version');
                 const data = await res.json();
                 document.getElementById('version-tag').innerText = `v.${data.version}`;
-            } catch (e) {}
+            } catch (e) { document.getElementById('version-tag').innerText = 'v.offline'; }
         }
 
         function getEventDateOnly(eventTime) {
@@ -124,12 +122,11 @@
                 document.getElementById('connection-warning').classList.add('hidden');
                 document.body.className = data.dark_mode ? '' : 'light-theme';
 
-                // Weather
+                // Weather & Forecast
                 document.getElementById('weather-main-icon').innerHTML = getWeatherIcon(data.weather.state, true);
                 document.getElementById('weather-temp').innerText = `${Math.round(data.weather.attributes.temperature)}°`;
                 document.getElementById('weather-condition').innerText = data.weather.state.toUpperCase().replace(/-/g, ' ');
 
-                // Forecast
                 document.getElementById('forecast-grid').innerHTML = data.forecast.map(day => `
                     <div class="forecast-day">
                         <div class="f-name">${new Date(day.datetime).toLocaleDateString([], {weekday:'short'}).toUpperCase()}</div>
@@ -138,12 +135,7 @@
                     </div>
                 `).join('');
 
-                // Legend
-                document.getElementById('docked-legend').innerHTML = data.legend.map(item => `
-                    <div class="key-item"><span class="dot" style="background:${item.color}"></span> ${item.name.toUpperCase()}</div>
-                `).join('');
-
-                // Planner
+                // Planner (Sidebar)
                 const eventList = document.getElementById('event-list');
                 eventList.innerHTML = '';
                 for (let i = 0; i < 7; i++) {
@@ -167,7 +159,12 @@
                     }
                 }
 
-                // Grid (Main Calendar)
+                // Legend
+                document.getElementById('docked-legend').innerHTML = data.legend.map(item => `
+                    <div class="key-item"><span class="dot" style="background:${item.color}"></span> ${item.name.toUpperCase()}</div>
+                `).join('');
+
+                // ROLLING CALENDAR GRID
                 const grid = document.getElementById('grid');
                 const now = new Date();
                 const todayStr = getLocalDateStr(now);
@@ -176,25 +173,17 @@
                 ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].forEach(d => grid.insertAdjacentHTML('beforeend', `<div class="day-header">${d}</div>`));
 
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                let startDayOfWeek = startOfMonth.getDay();
-                const calendarDays = [];
-                for (let i = startDayOfWeek; i > 0; i--) {
-                    const d = new Date(now.getFullYear(), now.getMonth(), 1 - i);
-                    calendarDays.push({ d: d.getDate(), m: d.getMonth(), y: d.getFullYear(), current: false });
-                }
-                const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-                for (let i = 1; i <= daysInMonth; i++) {
-                    calendarDays.push({ d: i, m: now.getMonth(), y: now.getFullYear(), current: true });
-                }
-                const remaining = 42 - calendarDays.length;
-                for (let i = 1; i <= remaining; i++) {
-                    const d = new Date(now.getFullYear(), now.getMonth() + 1, i);
-                    calendarDays.push({ d: d.getDate(), m: d.getMonth(), y: d.getFullYear(), current: false });
-                }
+                const startDayOfWeek = startOfMonth.getDay(); 
+                const daysToGoBack = startDayOfWeek + 7; // Forces at least one full week of the previous month
+                const startDate = new Date(now.getFullYear(), now.getMonth(), 1 - daysToGoBack);
 
-                calendarDays.forEach(day => {
-                    const dStr = `${day.y}-${String(day.m+1).padStart(2,'0')}-${String(day.d).padStart(2,'0')}`;
+                for (let i = 0; i < 42; i++) {
+                    const d = new Date(startDate);
+                    d.setDate(startDate.getDate() + i);
+                    const dStr = getLocalDateStr(d);
+                    const isCurrentMonth = d.getMonth() === now.getMonth();
                     const dayEvents = sortEvents(data.events.filter(e => getEventDateOnly(e.start.date || e.start.dateTime) === dStr));
+                    
                     let eventHtml = dayEvents.slice(0, 4).map(e => {
                         const time = e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}).replace(' ', '').toLowerCase() : '';
                         const isAllDay = e.start.date ? 'all-day-row' : '';
@@ -202,16 +191,15 @@
                     }).join('');
 
                     grid.insertAdjacentHTML('beforeend', `
-                        <div class="day-cell ${!day.current ? 'other-month' : ''} ${dStr === todayStr ? 'today' : ''}">
-                            <div class="day-number">${day.d}</div>
+                        <div class="day-cell ${!isCurrentMonth ? 'other-month' : ''} ${dStr === todayStr ? 'today' : ''}">
+                            <div class="day-number">${d.getDate()}</div>
                             <div class="cell-events">${eventHtml}</div>
                         </div>`);
-                });
+                }
 
                 lucide.createIcons();
             } catch (e) { 
                 document.getElementById('connection-warning').classList.remove('hidden');
-                lucide.createIcons();
             }
         }
 
