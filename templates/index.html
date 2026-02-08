@@ -17,7 +17,7 @@
                 <div id="digital-date">Loading...</div>
             </div>
             <div id="planner"><div id="event-list"></div></div>
-            <div id="version-tag">Loading version...</div>
+            <div id="version-tag">Loading...</div>
         </aside>
 
         <div id="main-column">
@@ -38,7 +38,7 @@
     </div>
 
     <script>
-        let lastUpdate = Date.now();
+        let lastSuccess = Date.now();
         document.addEventListener('contextmenu', e => e.preventDefault());
 
         function getLocalDateStr(d) {
@@ -57,31 +57,51 @@
             const options = { weekday: 'short', month: 'long', day: 'numeric' };
             document.getElementById('digital-date').innerText = now.toLocaleDateString(undefined, options).toUpperCase();
 
-            // WATCHDOG: If dashboard hasn't fetched data in 2 mins, force reload
-            if (Date.now() - lastUpdate > 120000) { location.reload(); }
+            // WATCHDOG: Refresh page if frozen for > 5 mins
+            if (Date.now() - lastSuccess > 300000) location.reload();
+        }
+
+        function getWeatherIcon(cond) {
+            const icons = { 'sunny': 'sun', 'cloudy': 'cloud', 'rainy': 'cloud-rain', 'partlycloudy': 'cloud-sun' };
+            return `<i data-lucide="${icons[cond?.toLowerCase()] || 'help-circle'}"></i>`;
         }
 
         async function updateDashboard() {
             try {
-                const res = await fetch('/api/data');
+                const res = await fetch('/api/data?t=' + Date.now());
+                if (!res.ok) throw new Error("API Offline");
                 const data = await res.json();
-                lastUpdate = Date.now();
+                lastSuccess = Date.now();
 
-                // 1. Weather
-                document.getElementById('weather-main-icon').innerHTML = `<i data-lucide="sun" style="width:7vh;height:7vh"></i>`; // Placeholder logic
-                document.getElementById('weather-temp').innerText = `${Math.round(data.weather.attributes.temperature)}°`;
+                // 1. Weather Update (Defensive)
+                const temp = data.weather?.attributes?.temperature;
+                if (temp !== undefined) {
+                    document.getElementById('weather-temp').innerText = `${Math.round(temp)}°`;
+                    document.getElementById('weather-condition').innerText = (data.weather.state || '---').toUpperCase();
+                    document.getElementById('weather-main-icon').innerHTML = getWeatherIcon(data.weather.state);
+                }
 
-                // 2. Rolling Calendar Grid (6 weeks)
+                // 2. Forecast Update
+                const fGrid = document.getElementById('forecast-grid');
+                if (data.forecast && Array.isArray(data.forecast)) {
+                    fGrid.innerHTML = data.forecast.slice(0, 5).map(day => `
+                        <div class="forecast-day">
+                            <div class="f-name">${new Date(day.datetime).toLocaleDateString([], {weekday:'short'}).toUpperCase()}</div>
+                            <div class="f-icon">${getWeatherIcon(day.condition)}</div>
+                            <div class="f-temp">${Math.round(day.temperature)}°</div>
+                        </div>
+                    `).join('');
+                }
+
+                // 3. Planner & Rolling Calendar Grid
                 const grid = document.getElementById('grid');
-                grid.replaceChildren(); // Memory-safe clear
+                grid.replaceChildren(); // Safe clear
                 const now = new Date();
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                const startDay = startOfMonth.getDay(); 
-                const startDate = new Date(now.getFullYear(), now.getMonth(), 1 - (startDay + 7)); // Buffer Week
+                const startDate = new Date(now.getFullYear(), now.getMonth(), 1 - (startOfMonth.getDay() + 7)); // Buffer week
 
                 for (let i = 0; i < 42; i++) {
-                    const d = new Date(startDate);
-                    d.setDate(startDate.getDate() + i);
+                    const d = new Date(startDate); d.setDate(startDate.getDate() + i);
                     const dStr = getLocalDateStr(d);
                     const isCurrent = d.getMonth() === now.getMonth();
                     
@@ -93,7 +113,10 @@
                 }
 
                 lucide.createIcons();
-            } catch (e) { console.error("Update failed", e); }
+            } catch (e) {
+                console.error("Dashboard error:", e);
+                document.getElementById('version-tag').innerText = "Reconnect Error...";
+            }
         }
 
         setInterval(updateClock, 1000);
