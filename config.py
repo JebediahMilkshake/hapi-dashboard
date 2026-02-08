@@ -1,3 +1,14 @@
+# Dashboard Configuration File
+# Edit this file to customize your calendar dashboard
+
+# ==================== HOME ASSISTANT CONNECTION ====================
+HA_URL = "http://192.168.1.113:8123"
+HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI0MGZiZTM4NWQ2MGI0YzIwODExZWVhYjExZjZhOWVhNCIsImlhdCI6MTc3MDQ5OTMxMywiZXhwIjoyMDg1ODU5MzEzfQ.o5fivSvhvrgDrrZncOBpq0xx_Le3hpfGDj-A2s0b4jk"
+
+# ==================== WEATHER ====================
+WEATHER_ENTITY = "weather.forecast_home"  # Your weather entity ID
+
+
 # ==================== CALENDARS ====================
 # Add your calendar entities with display names and colors
 CALENDARS = [
