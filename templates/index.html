@@ -10,15 +10,15 @@
     <div id="dashboard-layout">
         <aside id="sidebar">
             <div id="clock-section">
-    		<div id="status-overlay">
-        	    <div id="connection-warning" class="hidden"><i data-lucide="plug-zap-2"></i></div>
-	        </div>
-   	 	<div id="clock-display">
-        	    <span id="time-text">00:00</span>
-	            <span id="clock-ampm">--</span>
-	        </div>
-    		<div id="digital-date">Loading...</div>
-	    </div>
+                <div id="status-overlay">
+                    <div id="connection-warning" class="hidden"><i data-lucide="plug-zap-2"></i></div>
+                </div>
+                <div id="clock-container">
+                    <span id="clock-time">00<span id="clock-colon">:</span>00</span>
+                    <span id="clock-ampm">--</span>
+                </div>
+                <div id="digital-date">Loading...</div>
+            </div>
             
             <div id="planner">
                 <div id="event-list"></div>
@@ -49,6 +49,16 @@
     <script>
         document.addEventListener('contextmenu', event => event.preventDefault());
 
+        // Force cursor hiding by moving it off-screen when mouse moves
+        let hideTimeout;
+        document.addEventListener('mousemove', (e) => {
+            document.body.style.cursor = 'none';
+            clearTimeout(hideTimeout);
+            hideTimeout = setTimeout(() => {
+                document.body.style.cursor = 'none';
+            }, 100);
+        });
+
         function getOrdinal(d) {
             if (d > 3 && d < 21) return 'th';
             switch (d % 10) {
@@ -67,34 +77,23 @@
         }
 
         function updateClock() {
-    	    const now = new Date();
-    	    let hours = now.getHours();
-    	    const mins = String(now.getMinutes()).padStart(2, '0');
-    	    const ampm = hours >= 12 ? 'PM' : 'AM';
-    	    hours = hours % 12 || 12;
+            const now = new Date();
+            let hours = now.getHours();
+            const mins = String(now.getMinutes()).padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            
+            // Update time with flashing colon
+            const seconds = now.getSeconds();
+            const colonOpacity = seconds % 2 === 0 ? '1' : '0';
+            document.getElementById('clock-time').innerHTML = `${hours}<span id="clock-colon" style="opacity: ${colonOpacity}">:</span>${mins}`;
+            document.getElementById('clock-ampm').innerText = ampm;
 
-    	    // Use ONLY the single 'time-text' ID we created in the last step
-    	    const timeEl = document.getElementById('time-text');
-    	    if (timeEl) {
-       	        timeEl.innerText = `${hours}:${mins}`;
-    	    }
-
-    	    const ampmEl = document.getElementById('clock-ampm');
-    	    if (ampmEl) {
-        	ampmEl.innerText = ampm;
-    	    }
-
-   	     // Date Logic
-    	    const dayName = now.toLocaleDateString([], { weekday: 'short' });
-    	    const monthName = now.toLocaleDateString([], { month: 'long' });
-    	    const dateNum = now.getDate();
-    	    const dateString = `${dayName} ${monthName} ${dateNum}${getOrdinal(dateNum)}`;
-    
-    	    const dateEl = document.getElementById('digital-date');
-    	    if (dateEl) {
-        	dateEl.innerText = dateString;
-    	    }
-	}
+            const dayName = now.toLocaleDateString([], { weekday: 'short' });
+            const monthName = now.toLocaleDateString([], { month: 'long' });
+            const dateNum = now.getDate();
+            document.getElementById('digital-date').innerText = `${dayName} ${monthName} ${dateNum}${getOrdinal(dateNum)}`;
+        }
 
         async function updateVersion() {
             try {
