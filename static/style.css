@@ -94,7 +94,10 @@ html, body {
 #weather-temp { font-size: 6vh; font-weight: 900; }
 
 #forecast-grid { display: flex; flex-direction: row; flex-grow: 1; justify-content: space-around; align-items: center; }
-.forecast-day { display: flex; flex-direction: column; align-items: center; gap: 0.5vh; }
+.forecast-day { display: flex; flex-direction: column; align-items: center; gap: 0.8vh; }
+.f-name { font-size: 1.8vh; font-weight: 800; }
+.f-icon svg { width: 4vh; height: 4vh; }
+.f-temp { font-size: 2.2vh; font-weight: 900; }
 
 #weather-main-icon svg, .f-icon svg { stroke: var(--accent) !important; stroke-width: 2.5; }
 
@@ -115,9 +118,12 @@ html, body {
 .day-cell.today { border: 2.5px solid var(--accent); background: rgba(33, 150, 243, 0.05); }
 .day-cell.other-month { opacity: 0.2; filter: grayscale(1); }
 
-.cell-event { font-size: 1.25vh; font-weight: 700; border-left: 0.4vh solid; padding-left: 0.4vh; margin-bottom: 0.2vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(0,0,0,0.1); }
-.cell-event.all-day-row { font-style: italic; background: rgba(255, 255, 255, 0.03); }
-.cell-event.all-day-row:first-of-type { margin-top: auto; }
+.day-number { font-size: 1.5vh; font-weight: bold; margin-bottom: 0.3vh; }
+.cell-events { flex: 1; display: flex; flex-direction: column; gap: 0.2vh; overflow: hidden; }
+.cell-allday-events { display: flex; flex-direction: column; gap: 0; margin-top: auto; }
+
+.cell-event { font-size: 1.25vh; font-weight: 700; border-left: 0.4vh solid; padding-left: 0.4vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(0,0,0,0.1); }
+.cell-event.all-day-row { font-style: italic; background: rgba(255, 255, 255, 0.03); margin-bottom: 0; }
 
 #docked-legend { background: var(--bg-panel); border-radius: 1.5vh; padding: 1.2vh; display: flex; justify-content: center; gap: 4vh; border: 1px solid var(--border); }
 .key-item { display: flex; align-items: center; gap: 1vh; font-size: 1.4vh; font-weight: 900; }
