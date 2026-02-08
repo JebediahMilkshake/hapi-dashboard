@@ -7,6 +7,7 @@ import subprocess
 import os
 import sys
 import time
+import logging
 from datetime import datetime, timedelta
 from config import *
 
