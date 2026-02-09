@@ -165,11 +165,6 @@ def get_ha_data(endpoint, method="GET", data=None, timeout=5):
         app.logger.error(f"HA API error: {endpoint} - {str(e)}")
         return None
 
-def run_flask():
-    """Run Flask development server"""
-    # Disable request logging to reduce noise
-    app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)
-
 def launch_cog_browser():
     """
     Launch cog browser in fullscreen kiosk mode after Flask starts.
@@ -178,33 +173,26 @@ def launch_cog_browser():
     time.sleep(3)  # Wait for Flask to start
     
     try:
+        print("[HAPi-Dashboard] Launching cog browser...")
         # Launch cog in fullscreen kiosk mode
-        # --fullscreen: Fullscreen mode
-        # --disable-media-controls: Don't show media controls
         subprocess.Popen([
             'cog',
             '--fullscreen',
             'http://127.0.0.1:5000'
         ])
         
-        app.logger.info("Cog browser launched successfully")
+        print("[HAPi-Dashboard] Cog browser launched successfully")
     except FileNotFoundError:
-        app.logger.error("cog browser not found. Install with: sudo apt install -y cog")
+        print("[HAPi-Dashboard] ERROR: cog browser not found. Install with: sudo apt install -y cog")
     except Exception as e:
-        app.logger.error(f"Error launching cog browser: {e}")
+        print(f"[HAPi-Dashboard] ERROR: Error launching cog browser: {e}")
 
 if __name__ == '__main__':
-    # Start Flask in background thread
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    
-    # Launch cog browser in separate thread
-    browser_thread = threading.Thread(target=launch_cog_browser, daemon=False)
+    # Launch cog browser in background thread
+    browser_thread = threading.Thread(target=launch_cog_browser, daemon=True)
     browser_thread.start()
     
-    # Keep the main thread alive
-    try:
-        browser_thread.join()
-    except KeyboardInterrupt:
-        app.logger.info("Shutting down...")
-        sys.exit(0)
+    # Run Flask in FOREGROUND (blocking) - this keeps systemd happy
+    # systemd will see this process as the main service process
+    print("[HAPi-Dashboard] Starting Flask server on http://127.0.0.1:5000")
+    app.run(host='127.0.0.1', port=5000, debug=False, threaded=True, use_reloader=False)
