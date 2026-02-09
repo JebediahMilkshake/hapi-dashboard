@@ -1,14 +1,18 @@
-import subprocess
-import time
-import logging
+import os
+os.environ['QT_QPA_PLATFORM'] = 'eglfs'
+os.environ['QT_QPA_EGLFS_ALWAYS_SET_DPI'] = '1'
+
+import webview
 from flask import Flask, render_template, jsonify
 from flask_cors import CORS
 import threading
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import os
+import subprocess
 import sys
+import time
+import logging
 from datetime import datetime, timedelta
 from config import *
 
@@ -41,7 +45,7 @@ cache = {
 
 CACHE_DURATION = {
     "weather": 60,      # Weather: cache for 60 seconds
-    "theme": 300,       # Theme: cache for 5 minutes
+    "theme": 300,       # Theme: cache for 5 minutes (rarely changes)
     "forecast": 300     # Forecast: cache for 5 minutes
 }
 
@@ -52,13 +56,17 @@ def index():
 @app.route('/api/version')
 def get_version():
     try:
+        # Get the date of the last commit in YYYY.MM.DD format
+        # and the short hash (e.g., a1b2c3d)
         cmd = ["git", "log", "-1", "--format=%cd (%h)", "--date=format:%Y.%m.%d"]
         git_info = subprocess.check_output(cmd).decode().strip()
         
         response = jsonify({"version": git_info})
+        # Prevent the browser from caching the version number
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         return response
     except:
+        # Fallback if git is not initialized or fails
         return jsonify({"version": "v1.0-local"})
 
 def is_cache_valid(cache_key):
@@ -140,6 +148,15 @@ def get_dashboard_data():
 def get_ha_data(endpoint, method="GET", data=None, timeout=5):
     """
     Fetch data from Home Assistant API using optimized session.
+    
+    Args:
+        endpoint: API endpoint (without base URL)
+        method: GET or POST
+        data: Request payload for POST
+        timeout: Request timeout in seconds
+    
+    Returns:
+        JSON response or None if failed
     """
     headers = {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
     url = f"{HA_URL}/api/{endpoint}"
@@ -165,34 +182,24 @@ def get_ha_data(endpoint, method="GET", data=None, timeout=5):
         app.logger.error(f"HA API error: {endpoint} - {str(e)}")
         return None
 
-def launch_cog_browser():
-    """
-    Launch cog browser in fullscreen kiosk mode after Flask starts.
-    Cog is a lightweight WPE WebKit browser perfect for embedded systems.
-    """
-    time.sleep(3)  # Wait for Flask to start
-    
-    try:
-        print("[HAPi-Dashboard] Launching cog browser...")
-        # Launch cog browser pointing to dashboard
-        # Cog will auto-maximize to fill available screen space
-        subprocess.Popen([
-            'cog',
-            'http://127.0.0.1:5000'
-        ])
-        
-        print("[HAPi-Dashboard] Cog browser launched successfully")
-    except FileNotFoundError:
-        print("[HAPi-Dashboard] ERROR: cog browser not found. Install with: sudo apt install -y cog")
-    except Exception as e:
-        print(f"[HAPi-Dashboard] ERROR: Error launching cog browser: {e}")
+def run_flask():
+    """Run Flask development server"""
+    app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)
 
 if __name__ == '__main__':
-    # Launch cog browser in background thread
-    browser_thread = threading.Thread(target=launch_cog_browser, daemon=True)
-    browser_thread.start()
+    # Start Flask in background thread
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
     
-    # Run Flask in FOREGROUND (blocking) - this keeps systemd happy
-    # systemd will see this process as the main service process
-    print("[HAPi-Dashboard] Starting Flask server on http://127.0.0.1:5000")
-    app.run(host='127.0.0.1', port=5000, debug=False, threaded=True, use_reloader=False)
+    # Give Flask time to start before launching webview
+    time.sleep(2)
+    
+    # Launch pywebview window (fullscreen kiosk mode)
+    try:
+        print("[HAPi-Dashboard] Launching pywebview in fullscreen kiosk mode...")
+        webview.create_window('HAPi Dashboard', 'http://127.0.0.1:5000', fullscreen=True)
+        webview.start()
+    except Exception as e:
+        print(f"[HAPi-Dashboard] Error starting webview: {e}")
+        app.logger.error(f"Error starting webview: {e}")
+        sys.exit(1)
