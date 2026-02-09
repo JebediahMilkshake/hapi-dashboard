@@ -174,10 +174,10 @@ def launch_cog_browser():
     
     try:
         print("[HAPi-Dashboard] Launching cog browser...")
-        # Launch cog in fullscreen kiosk mode
+        # Launch cog browser pointing to dashboard
+        # Cog will auto-maximize to fill available screen space
         subprocess.Popen([
             'cog',
-            '--fullscreen',
             'http://127.0.0.1:5000'
         ])
         
