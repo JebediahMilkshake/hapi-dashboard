@@ -1,12 +1,13 @@
 #!/bin/bash
-# DietPi Family Dashboard Setup Script
-# Run this after first DietPi boot to automate setup
-# Usage: sudo bash setup_dashboard.sh
+# HAPi Dashboard Setup Script for DietPi 64-bit
+# Configures Flask + cog browser kiosk dashboard
+# Usage: sudo bash setup_dashboard.sh [GITHUB_REPO_URL]
+# Example: sudo bash setup_dashboard.sh https://github.com/yourusername/HAPi-Dashboard.git
 
 set -e  # Exit on error
 
 echo "========================================="
-echo "Family Dashboard - DietPi Setup"
+echo "HAPi Dashboard - DietPi 64-bit Setup"
 echo "========================================="
 
 # Check if running as root
@@ -15,71 +16,124 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
+# Get GitHub repo URL from argument or use default
+GITHUB_REPO="${1:-https://github.com/yourusername/HAPi-Dashboard.git}"
+APP_DIR="/home/dietpi/HAPi-Dashboard"
+
 # Step 1: Update system
 echo ""
-echo "[1/8] Updating system packages..."
+echo "[1/10] Updating system packages..."
 apt update
 apt upgrade -y
 
 # Step 2: Install Python dependencies
 echo ""
-echo "[2/8] Installing Python 3 and dependencies..."
-apt install -y python3 python3-pip python3-dev python3-tk python3-pil build-essential git
+echo "[2/10] Installing Python 3 and dependencies..."
+apt install -y python3 python3-pip python3-dev build-essential git
 
-# Step 3: Install Python packages
+# Step 3: Install cog browser (WPE WebKit - lightweight embedded browser)
 echo ""
-echo "[3/8] Installing Python packages (pywebview, Flask, etc)..."
-pip3 install --break-system-packages pywebview==5.1.1 flask==3.0.0 flask-cors==4.0.0 requests==2.31.0
+echo "[3/10] Installing cog browser for kiosk display..."
+apt install -y cog
 
-# Step 4: Create app directory
+# Step 4: Install git config helper (fixes "dubious ownership" errors)
 echo ""
-echo "[4/8] Creating application directory..."
-mkdir -p /root/familydash/{templates,static}
-chown -R root:root /root/familydash
+echo "[4/10] Configuring git for safe directory access..."
+git config --global --add safe.directory "$APP_DIR"
 
-# Step 5: Create systemd service
+# Step 5: Install Python packages for Flask app
 echo ""
-echo "[5/8] Creating systemd service file..."
-cat > /etc/systemd/system/familydash.service << 'EOF'
+echo "[5/10] Installing Python packages (Flask, requests, etc)..."
+pip3 install --break-system-packages flask==3.0.0 flask-cors==4.0.0 requests==2.31.0
+
+# Step 6: Clone or pull repository
+echo ""
+echo "[6/10] Setting up git repository..."
+
+if [ -d "$APP_DIR/.git" ]; then
+    # Repository exists - pull latest
+    echo "Git repository found. Pulling latest changes..."
+    cd "$APP_DIR"
+    git pull origin main || git pull origin master
+    echo "✓ Repository updated successfully"
+elif [ -d "$APP_DIR" ]; then
+    # Directory exists but not a git repo - convert it
+    echo "Directory exists but not a git repository. Initializing..."
+    cd "$APP_DIR"
+    git init
+    git remote add origin "$GITHUB_REPO"
+    git fetch origin
+    git reset --hard origin/main || git reset --hard origin/master
+    echo "✓ Repository initialized from remote"
+else
+    # Directory doesn't exist - clone it
+    echo "Cloning repository from: $GITHUB_REPO"
+    git clone "$GITHUB_REPO" "$APP_DIR"
+    echo "✓ Repository cloned successfully"
+fi
+
+# Set proper permissions
+chown -R dietpi:dietpi "$APP_DIR"
+chmod -R 755 "$APP_DIR"
+
+# Step 7: Verify directory structure
+echo ""
+echo "[7/10] Verifying directory structure..."
+mkdir -p "$APP_DIR/templates"
+mkdir -p "$APP_DIR/static"
+chown -R dietpi:dietpi "$APP_DIR"
+
+if [ -f "$APP_DIR/app.py" ] && [ -f "$APP_DIR/config.py" ]; then
+    echo "✓ Application files found"
+else
+    echo "⚠ Warning: Some application files are missing"
+    echo "  Expected: app.py, config.py, templates/index.html, static/style.css"
+fi
+
+# Step 8: Create systemd service
+echo ""
+echo "[8/10] Creating systemd service file..."
+cat > /etc/systemd/system/HAPi-Dashboard.service << 'EOF'
 [Unit]
-Description=Family Dashboard pywebview Application
+Description=HAPi Dashboard - Home Assistant Family Dashboard
 After=network-online.target
 Wants=network-online.target
+Documentation=https://github.com/yourusername/HAPi-Dashboard
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/root/familydash
+WorkingDirectory=/home/dietpi/HAPi-Dashboard
 Environment="DISPLAY=:0"
 Environment="XAUTHORITY=/root/.Xauthority"
-Environment="QT_QPA_PLATFORM=eglfs"
+Environment="XDG_RUNTIME_DIR=/run/user/0"
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=/usr/bin/python3 -u /root/familydash/app.py
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/python3 -u /home/dietpi/HAPi-Dashboard/app.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=familydash
+SyslogIdentifier=HAPi-Dashboard
 KillMode=mixed
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Step 6: Set permissions on service file
+# Step 9: Disable desktop environment (LXDE/LXDM)
 echo ""
-echo "[6/8] Setting permissions..."
-chmod 644 /etc/systemd/system/familydash.service
+echo "[9/10] Disabling desktop environment for fullscreen kiosk mode..."
+systemctl disable display-manager.service 2>/dev/null || true
+systemctl stop display-manager.service 2>/dev/null || true
 
-# Step 7: Reload systemd
+# Step 10: Finalize systemd setup
 echo ""
-echo "[7/8] Reloading systemd daemon..."
+echo "[10/10] Finalizing systemd configuration..."
+chmod 644 /etc/systemd/system/HAPi-Dashboard.service
 systemctl daemon-reload
-
-# Step 8: Enable service (but don't start yet)
-echo ""
-echo "[8/8] Enabling service on boot..."
-systemctl enable familydash.service
+systemctl enable HAPi-Dashboard.service
 
 # Summary
 echo ""
@@ -89,27 +143,52 @@ echo "========================================="
 echo ""
 echo "NEXT STEPS:"
 echo ""
-echo "1. Copy your application files to /root/familydash/"
-echo "   - Place index.html in: /root/familydash/templates/"
-echo "   - Place style.css in: /root/familydash/static/"
-echo "   - Place app.py and config.py in: /root/familydash/"
+echo "1. Verify your application files:"
+echo "   ls -la $APP_DIR/"
+echo "   # Should have: app.py, config.py, templates/, static/"
 echo ""
-echo "2. Update config.py with your Home Assistant settings:"
-echo "   - HA_URL: Your Home Assistant IP/hostname"
-echo "   - HA_TOKEN: Your long-lived access token"
-echo "   - WEATHER_ENTITY: Your weather entity"
-echo "   - CALENDARS: Your calendar entities"
+echo "2. SSH in and update config.py with your Home Assistant settings:"
+echo "   ssh dietpi@<your-ip>"
+echo "   nano $APP_DIR/config.py"
 echo ""
-echo "3. Start the service (first time):"
-echo "   sudo systemctl start familydash.service"
+echo "3. Update these in config.py:"
+echo "   - HA_URL: Your Home Assistant IP (e.g., http://192.168.1.xxx:8123)"
+echo "   - HA_TOKEN: Your long-lived access token from Home Assistant"
+echo "   - WEATHER_ENTITY: Your weather entity ID (e.g., weather.forecast_home)"
+echo "   - CALENDARS: Your calendar entities with colors and priorities"
 echo ""
-echo "4. Check status:"
-echo "   systemctl status familydash.service"
+echo "4. Start the service (first time):"
+echo "   sudo systemctl start HAPi-Dashboard.service"
 echo ""
-echo "5. View logs:"
-echo "   journalctl -u familydash.service -f"
+echo "5. Check status:"
+echo "   systemctl status HAPi-Dashboard.service"
 echo ""
-echo "6. Reboot to test autostart:"
+echo "6. View logs:"
+echo "   journalctl -u HAPi-Dashboard.service -f"
+echo ""
+echo "7. Reboot to test fullscreen kiosk autostart:"
 echo "   sudo reboot"
 echo ""
 echo "========================================="
+echo ""
+echo "File Structure:"
+echo "  $APP_DIR"
+echo "  ├── app.py (Flask + cog browser launcher)"
+echo "  ├── config.py (Home Assistant settings - EDIT THIS)"
+echo "  ├── templates/"
+echo "  │   └── index.html (dashboard UI)"
+echo "  └── static/"
+echo "      └── style.css (dashboard styling)"
+echo ""
+echo "Service:"
+echo "  /etc/systemd/system/HAPi-Dashboard.service"
+echo ""
+echo "========================================="
+echo ""
+echo "Troubleshooting:"
+echo "  • Check service logs: journalctl -u HAPi-Dashboard.service -n 50"
+echo "  • Test Flask manually: cd $APP_DIR && python3 app.py"
+echo "  • Test HA connection: curl -H 'Authorization: Bearer TOKEN' http://HA_IP:8123/api/states/weather.xxx"
+echo "  • Monitor temp: vcgencmd measure_temp"
+echo "  • Check RAM: free -h"
+echo ""
