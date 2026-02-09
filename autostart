@@ -1,4 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=HA Dashboard
-Exec=/home/pi/Documents/dashboard/start_dashboard.sh
