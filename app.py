@@ -12,6 +12,10 @@ import time
 import logging
 from datetime import datetime, timedelta
 from config import *
+import os
+
+
+os.environ['GDK_BACKEND'] = 'x11'
 
 app = Flask(__name__)
 CORS(app)
