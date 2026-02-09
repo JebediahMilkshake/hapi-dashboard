@@ -58,8 +58,8 @@ def get_dashboard_data():
 
     all_events = []
     now_dt = datetime.now()
-    start_iso = (now_dt - timedelta(days=14)).isoformat()
-    end_iso = (now_dt + timedelta(days=45)).isoformat()
+    start_iso = (now_dt - timedelta(days=3)).isoformat()
+    end_iso = (now_dt + timedelta(days=14)).isoformat()
     
     for cal in CALENDARS:
         events = get_ha_data(f"calendars/{cal['entity']}", data={"start": start_iso, "end": end_iso})
