@@ -1,21 +1,16 @@
-import webview
+import subprocess
+import time
+import logging
 from flask import Flask, render_template, jsonify
 from flask_cors import CORS
 import threading
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import subprocess
 import os
 import sys
-import time
-import logging
 from datetime import datetime, timedelta
 from config import *
-import os
-
-
-os.environ['GDK_BACKEND'] = 'x11'
 
 app = Flask(__name__)
 CORS(app)
@@ -25,7 +20,6 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 # OPTIMIZATION: Connection pooling for Home Assistant API
-# Reduces overhead of creating new connections on every request
 session = requests.Session()
 retry_strategy = Retry(
     total=3,
@@ -39,7 +33,6 @@ session.mount("http://", adapter)
 session.mount("https://", adapter)
 
 # OPTIMIZATION: Cache for frequently accessed data
-# Reduces API calls and lightens load on Home Assistant
 cache = {
     "weather": {"data": None, "timestamp": None},
     "theme": {"data": None, "timestamp": None},
@@ -47,8 +40,8 @@ cache = {
 }
 
 CACHE_DURATION = {
-    "weather": 300,      # Weather: cache for 5 minutes
-    "theme": 300,       # Theme: cache for 5 minutes (rarely changes)
+    "weather": 60,      # Weather: cache for 60 seconds
+    "theme": 300,       # Theme: cache for 5 minutes
     "forecast": 300     # Forecast: cache for 5 minutes
 }
 
@@ -59,17 +52,13 @@ def index():
 @app.route('/api/version')
 def get_version():
     try:
-        # Get the date of the last commit in YYYY.MM.DD format
-        # and the short hash (e.g., a1b2c3d)
         cmd = ["git", "log", "-1", "--format=%cd (%h)", "--date=format:%Y.%m.%d"]
         git_info = subprocess.check_output(cmd).decode().strip()
         
         response = jsonify({"version": git_info})
-        # Prevent the browser from caching the version number
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         return response
     except:
-        # Fallback if git is not initialized or fails
         return jsonify({"version": "v1.0-local"})
 
 def is_cache_valid(cache_key):
@@ -151,15 +140,6 @@ def get_dashboard_data():
 def get_ha_data(endpoint, method="GET", data=None, timeout=5):
     """
     Fetch data from Home Assistant API using optimized session.
-    
-    Args:
-        endpoint: API endpoint (without base URL)
-        method: GET or POST
-        data: Request payload for POST
-        timeout: Request timeout in seconds (reduced from 10s for Pi Zero)
-    
-    Returns:
-        JSON response or None if failed
     """
     headers = {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
     url = f"{HA_URL}/api/{endpoint}"
@@ -187,20 +167,44 @@ def get_ha_data(endpoint, method="GET", data=None, timeout=5):
 
 def run_flask():
     """Run Flask development server"""
+    # Disable request logging to reduce noise
     app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)
+
+def launch_cog_browser():
+    """
+    Launch cog browser in fullscreen kiosk mode after Flask starts.
+    Cog is a lightweight WPE WebKit browser perfect for embedded systems.
+    """
+    time.sleep(3)  # Wait for Flask to start
+    
+    try:
+        # Launch cog in fullscreen kiosk mode
+        # --fullscreen: Fullscreen mode
+        # --disable-media-controls: Don't show media controls
+        subprocess.Popen([
+            'cog',
+            '--fullscreen',
+            'http://127.0.0.1:5000'
+        ])
+        
+        app.logger.info("Cog browser launched successfully")
+    except FileNotFoundError:
+        app.logger.error("cog browser not found. Install with: sudo apt install -y cog")
+    except Exception as e:
+        app.logger.error(f"Error launching cog browser: {e}")
 
 if __name__ == '__main__':
     # Start Flask in background thread
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     
-    # Give Flask time to start before launching webview
-    time.sleep(2)
+    # Launch cog browser in separate thread
+    browser_thread = threading.Thread(target=launch_cog_browser, daemon=False)
+    browser_thread.start()
     
-    # Launch pywebview window (fullscreen kiosk mode)
+    # Keep the main thread alive
     try:
-        webview.create_window('Family Dashboard', 'http://127.0.0.1:5000', fullscreen=True)
-        webview.start()
-    except Exception as e:
-        app.logger.error(f"Error starting webview: {e}")
-        sys.exit(1)
+        browser_thread.join()
+    except KeyboardInterrupt:
+        app.logger.info("Shutting down...")
+        sys.exit(0)
