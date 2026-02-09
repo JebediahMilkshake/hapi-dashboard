@@ -1,3 +1,4 @@
+import gc
 import webview
 from flask import Flask, render_template, jsonify
 from flask_cors import CORS
@@ -10,6 +11,9 @@ import time
 import logging
 from datetime import datetime, timedelta
 from config import *
+
+
+gc.set_threshold(700, 10, 10)
 
 app = Flask(__name__)
 CORS(app)
