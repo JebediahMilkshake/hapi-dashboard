@@ -17,7 +17,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Get GitHub repo URL from argument or use default
-GITHUB_REPO="${1:-https://github.com/yourusername/HAPi-Dashboard.git}"
+GITHUB_REPO="${1:-git@github.com:JebediahMilkshake/HAPi-Dashboard.git}"
 APP_DIR="/home/dietpi/HAPi-Dashboard"
 
 # Step 1: Update system
