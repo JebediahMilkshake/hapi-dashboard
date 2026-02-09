@@ -1,0 +1,33 @@
+[Unit]
+Description=Family Dashboard pywebview Application
+After=network-online.target
+Wants=network-online.target
+Documentation=https://your-documentation-url.com
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/familydash
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/root/.Xauthority"
+Environment="QT_QPA_PLATFORM=eglfs"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 -u /root/familydash/app.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=familydash
+
+# Performance tuning for Pi Zero 2 W
+CPUAccounting=yes
+MemoryAccounting=yes
+
+# Kill any subprocess if main process dies
+KillMode=mixed
+
+# Don't timeout
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
