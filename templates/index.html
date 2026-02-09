@@ -14,7 +14,7 @@
                     <div id="connection-warning" class="hidden"><i data-lucide="plug-zap-2"></i></div>
                 </div>
                 <div id="clock-container">
-                    <span id="clock-time">00<span id="clock-colon">:</span>00</span>
+                    <span id="clock-time">00:00</span>
                     <span id="clock-ampm">--</span>
                 </div>
                 <div id="digital-date">Loading...</div>
@@ -83,10 +83,7 @@
             const ampm = hours >= 12 ? 'PM' : 'AM';
             hours = hours % 12 || 12;
             
-            // Update time with flashing colon
-            const seconds = now.getSeconds();
-            const colonOpacity = seconds % 2 === 0 ? '1' : '0';
-            document.getElementById('clock-time').innerHTML = `${hours}<span id="clock-colon" style="opacity: ${colonOpacity}">:</span>${mins}`;
+            document.getElementById('clock-time').innerText = `${hours}:${mins}`;
             document.getElementById('clock-ampm').innerText = ampm;
 
             const dayName = now.toLocaleDateString([], { weekday: 'short' });
