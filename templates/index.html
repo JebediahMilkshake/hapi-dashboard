@@ -1,38 +1,239 @@
-<div id="main-container">
-    <div id="clock-time">00:00</div>
-    <div id="digital-date">--</div>
-    <div id="weather-main-icon"></div>
-    <div id="forecast-container"></div>
-    
-    <!-- Monthly Planner remains intact -->
-    <div id="planner">
-        <div class="planner-date-header">Monthly View</div>
-        <div id="calendar-view">
-            <div id="grid">
-                <!-- Day headers -->
-                <div class="day-header">Sun</div>
-                <div class="day-header">Mon</div>
-                <div class="day-header">Tue</div>
-                <div class="day-header">Wed</div>
-                <div class="day-header">Thu</div>
-                <div class="day-header">Fri</div>
-                <div class="day-header">Sat</div>
-                <!-- Day cells and events go here -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Family Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div id="dashboard-layout">
+        <aside id="sidebar">
+            <div id="clock-section">
+                <div id="status-overlay">
+                    <div id="connection-warning" class="hidden"><i data-lucide="plug-zap-2"></i></div>
+                </div>
+                <div id="clock-container">
+                    <span id="clock-time">00:00</span>
+                    <span id="clock-ampm">--</span>
+                </div>
+                <div id="digital-date">Loading...</div>
             </div>
+            
+            <div id="planner">
+                <div id="event-list"></div>
+            </div>
+            
+            <div id="version-tag">v.----.--.--</div>
+        </aside>
+
+        <div id="main-column">
+            <header id="weather-bar">
+                <div id="current-weather">
+                    <div id="weather-main-icon"></div>
+                    <div id="weather-temp">--°</div>
+                    <div id="weather-condition">LOADING...</div>
+                </div>
+                <div id="forecast-grid"></div>
+            </header>
+
+            <main id="calendar-view">
+                <h1 id="month-header"></h1>
+                <div id="grid"></div>
+            </main>
+
+            <footer id="docked-legend"></footer>
         </div>
     </div>
 
-    <!-- Grocery List replaces daily view -->
-    <div id="grocery-list">
-        <h3>My Grocery List</h3>
-        <ul>
-            <li>Apples</li>
-            <li>Bananas</li>
-            <li>Milk</li>
-            <li>Baguettes</li>
-            <li>Chicken</li>
-        </ul>
-    </div>
+    <script>
+        document.addEventListener('contextmenu', event => event.preventDefault());
 
-    <div id="footer">v.----.--.--</div>
-</div>
+        // Force cursor hiding by moving it off-screen when mouse moves
+        let hideTimeout;
+        document.addEventListener('mousemove', (e) => {
+            document.body.style.cursor = 'none';
+            clearTimeout(hideTimeout);
+            hideTimeout = setTimeout(() => {
+                document.body.style.cursor = 'none';
+            }, 100);
+        });
+
+        function getOrdinal(d) {
+            if (d > 3 && d < 21) return 'th';
+            switch (d % 10) {
+                case 1:  return "st";
+                case 2:  return "nd";
+                case 3:  return "rd";
+                default: return "th";
+            }
+        }
+
+        function getLocalDateStr(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours();
+            const mins = String(now.getMinutes()).padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            
+            document.getElementById('clock-time').innerText = `${hours}:${mins}`;
+            document.getElementById('clock-ampm').innerText = ampm;
+
+            const dayName = now.toLocaleDateString([], { weekday: 'short' });
+            const monthName = now.toLocaleDateString([], { month: 'long' });
+            const dateNum = now.getDate();
+            document.getElementById('digital-date').innerText = `${dayName} ${monthName} ${dateNum}${getOrdinal(dateNum)}`;
+        }
+
+        async function updateVersion() {
+            try {
+                const res = await fetch('/api/version');
+                const data = await res.json();
+                document.getElementById('version-tag').innerText = `v.${data.version}`;
+            } catch (e) { document.getElementById('version-tag').innerText = 'v.offline'; }
+        }
+
+        function getEventDateOnly(eventTime) {
+            if (eventTime.length === 10) return eventTime;
+            const d = new Date(eventTime);
+            return getLocalDateStr(d);
+        }
+
+        function sortEvents(events) {
+            const timed = events.filter(e => e.start.dateTime);
+            const allDay = events.filter(e => e.start.date);
+            timed.sort((a, b) => new Date(a.start.dateTime) - new Date(b.start.dateTime));
+            allDay.sort((a, b) => (a.priority || 99) - (b.priority || 99));
+            return [...timed, ...allDay];
+        }
+
+        function getWeatherIcon(condition, isLarge = false) {
+            if(!condition) return '<i data-lucide="help-circle"></i>';
+            const icons = {
+                'sunny': 'sun', 'clearnight': 'moon', 'cloudy': 'cloud', 'fog': 'cloud-fog',
+                'hail': 'cloud-hail', 'lightning': 'zap', 'lightningrain': 'cloud-lightning',
+                'partlycloudy': 'cloud-sun', 'pouring': 'cloud-rain-wind', 'rainy': 'cloud-rain',
+                'snowy': 'cloud-snow', 'snowyrainy': 'cloud-snow', 'windy': 'wind'
+            };
+            const size = isLarge ? 'style="width: 7vh; height: 7vh;"' : '';
+            return `<i data-lucide="${icons[condition.toLowerCase().replace(/-/g, '')] || 'help-circle'}" ${size}></i>`;
+        }
+
+        async function updateDashboard() {
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+                document.getElementById('connection-warning').classList.add('hidden');
+                document.body.className = data.dark_mode ? '' : 'light-theme';
+
+                // Weather & Forecast
+                document.getElementById('weather-main-icon').innerHTML = getWeatherIcon(data.weather.state, true);
+                document.getElementById('weather-temp').innerText = `${Math.round(data.weather.attributes.temperature)}°F`;
+                document.getElementById('weather-condition').innerText = data.weather.state.toUpperCase().replace(/-/g, ' ');
+
+                document.getElementById('forecast-grid').innerHTML = data.forecast.map(day => `
+                    <div class="forecast-day">
+                        <div class="f-name">${new Date(day.datetime).toLocaleDateString([], {weekday:'short'}).toUpperCase()}</div>
+                        <div class="f-icon">${getWeatherIcon(day.condition)}</div>
+                        <div class="f-temp">${Math.round(day.temperature)}°F</div>
+                    </div>
+                `).join('');
+
+                // Planner (Sidebar)
+                const eventList = document.getElementById('event-list');
+                eventList.innerHTML = '';
+                for (let i = 0; i < 7; i++) {
+                    const tDate = new Date(); tDate.setDate(tDate.getDate() + i);
+                    const tStr = getLocalDateStr(tDate);
+                    const dayEvents = sortEvents(data.events.filter(e => getEventDateOnly(e.start.date || e.start.dateTime) === tStr));
+                    const label = i === 0 ? "TODAY" : tDate.toLocaleDateString('default', { weekday:'short', day:'numeric' }).toUpperCase();
+                    eventList.insertAdjacentHTML('beforeend', `<div class="planner-date-header">${label}</div>`);
+                    
+                    if(dayEvents.length === 0) {
+                        eventList.insertAdjacentHTML('beforeend', `<div class="event-item no-events"><div class="title">No Events</div></div>`);
+                    } else {
+                        dayEvents.forEach(e => {
+                            const time = e.start.date ? "ALL DAY" : new Date(e.start.dateTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                            eventList.insertAdjacentHTML('beforeend', `
+                                <div class="event-item" style="border-left-color:${e.color}">
+                                    <div class="time">${time}</div>
+                                    <div class="title">${e.summary}</div>
+                                </div>`);
+                        });
+                    }
+                }
+
+                // Legend
+                document.getElementById('docked-legend').innerHTML = data.legend.map(item => `
+                    <div class="key-item"><span class="dot" style="background:${item.color}"></span> ${item.name.toUpperCase()}</div>
+                `).join('');
+
+                // ROLLING CALENDAR GRID
+                const grid = document.getElementById('grid');
+                const now = new Date();
+                const todayStr = getLocalDateStr(now);
+                document.getElementById('month-header').innerText = now.toLocaleString('default', { month: 'long', year: 'numeric' }).toUpperCase();
+                grid.innerHTML = '';
+                ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].forEach(d => grid.insertAdjacentHTML('beforeend', `<div class="day-header">${d}</div>`));
+
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                const startDayOfWeek = startOfMonth.getDay(); 
+                const daysToGoBack = startDayOfWeek + 7; // Forces at least one full week of the previous month
+                const startDate = new Date(now.getFullYear(), now.getMonth(), 1 - daysToGoBack);
+
+                for (let i = 0; i < 42; i++) {
+                    const d = new Date(startDate);
+                    d.setDate(startDate.getDate() + i);
+                    const dStr = getLocalDateStr(d);
+                    const isCurrentMonth = d.getMonth() === now.getMonth();
+                    const dayEvents = sortEvents(data.events.filter(e => getEventDateOnly(e.start.date || e.start.dateTime) === dStr));
+                    
+                    // Separate timed and all-day events
+                    const timedEvents = dayEvents.filter(e => e.start.dateTime);
+                    const allDayEvents = dayEvents.filter(e => e.start.date);
+                    
+                    // Filter all-day events to only show highest priority
+                    let filteredAllDay = [];
+                    if (allDayEvents.length > 0) {
+                        const highestPriority = Math.min(...allDayEvents.map(e => e.priority || 99));
+                        filteredAllDay = allDayEvents.filter(e => (e.priority || 99) === highestPriority);
+                    }
+                    
+                    // Render timed events (limit to first 3 to leave room for all-day)
+                    let timedHtml = timedEvents.slice(0, 3).map(e => {
+                        const time = new Date(e.start.dateTime).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}).replace(' ', '').toLowerCase();
+                        return `<div class="cell-event" style="border-left-color:${e.color}"><span class="cell-time">${time}</span> ${e.summary}</div>`;
+                    }).join('');
+                    
+                    // Render all-day events (highest priority only)
+                    let allDayHtml = filteredAllDay.map(e => {
+                        return `<div class="cell-event all-day-row" style="border-left-color:${e.color}">${e.summary}</div>`;
+                    }).join('');
+
+                    grid.insertAdjacentHTML('beforeend', `
+                        <div class="day-cell ${!isCurrentMonth ? 'other-month' : ''} ${dStr === todayStr ? 'today' : ''}">
+                            <div class="day-number">${d.getDate()}</div>
+                            <div class="cell-events">${timedHtml}</div>
+                            <div class="cell-allday-events">${allDayHtml}</div>
+                        </div>`);
+                }
+
+                lucide.createIcons();
+            } catch (e) { 
+                document.getElementById('connection-warning').classList.remove('hidden');
+            }
+        }
+
+        setInterval(updateClock, 1000);
+        setInterval(updateDashboard, 30000);
+        updateClock(); updateDashboard(); updateVersion();
+    </script>
+</body>
+</html>
