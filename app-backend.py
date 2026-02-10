@@ -39,7 +39,7 @@ cache = {
 CACHE_DURATION = {
     "weather": 60,      # Weather: cache for 60 seconds
     "theme": 300,       # Theme: cache for 5 minutes (rarely changes)
-    "forecast": 300     # Forecast: cache for 5 minutes
+    "forecast": 300,     # Forecast: cache for 5 minutes
     "grocery_list" : 300 
 }
 
