@@ -139,6 +139,17 @@
         }
 
         // Main function to fetch and update dashboard data
+        // Cache DOM elements
+        const connectionWarning = document.getElementById('connection-warning');
+        const weatherMainIcon = document.getElementById('weather-main-icon');
+        const weatherTemp = document.getElementById('weather-temp');
+        const weatherCondition = document.getElementById('weather-condition');
+        const forecastGrid = document.getElementById('forecast-grid');
+        const eventList = document.getElementById('event-list');
+        const dockedLegend = document.getElementById('docked-legend');
+        const calendarGrid = document.getElementById('grid');
+        const monthHeader = document.getElementById('month-header');
+
         async function updateDashboard() {
             try {
                 const response = await fetch('/api/data');
@@ -148,30 +159,36 @@
                 const data = await response.json();
                 
                 // Hide connection warning
-                document.getElementById('connection-warning').classList.add('hidden');
+                connectionWarning.classList.add('hidden');
 
                 // Apply theme
                 document.body.className = data.dark_mode ? '' : 'light-theme';
 
                 // Weather & Forecast
-                document.getElementById('weather-main-icon').innerHTML = getWeatherIcon(data.weather.state, 'large-icon');
-                document.getElementById('weather-temp').textContent = `${Math.round(data.weather.attributes.temperature)}°`;
-                document.getElementById('weather-condition').textContent = data.weather.state.toUpperCase().replace(/-/g, ' ');
+                weatherMainIcon.innerHTML = getWeatherIcon(data.weather.state, 'large-icon');
+                weatherTemp.textContent = `${Math.round(data.weather.attributes.temperature)}°`;
+                weatherCondition.textContent = data.weather.state.toUpperCase().replace(/-/g, ' ');
 
-                document.getElementById('forecast-grid').innerHTML = data.forecast.map(day => `
-                    <div class="forecast-day">
+                const forecastFragment = document.createDocumentFragment();
+                data.forecast.forEach(day => {
+                    const div = document.createElement('div');
+                    div.className = 'forecast-day';
+                    div.innerHTML = `
                         <div class="f-name">${new Date(day.datetime).toLocaleDateString([], {weekday:'short'}).toUpperCase()}</div>
                         <div class="f-icon">${getWeatherIcon(day.condition)}</div>
-                        <div class="f-temp">${Math.round(day.temperature)}°</div>
-                    </div>
-                `).join('');
+                        <div class="f-temp">${Math.round(day.temperature)}°</div>`;
+                    forecastFragment.appendChild(div);
+                });
+                forecastGrid.innerHTML = ''; // Clear previous
+                forecastGrid.appendChild(forecastFragment);
+                // Create Lucide icons for the newly added forecast items
+                lucide.createIcons({ container: forecastGrid });
 
                 // Planner (Sidebar Event List)
-                const eventList = document.getElementById('event-list');
-                eventList.innerHTML = ''; // Clear previous events
+                const plannerFragment = document.createDocumentFragment();
                 const now = new Date();
                 const todayStr = getLocalDateStr(now);
-                const plannerDaysToShow = 7; // As per config.py suggestion
+                const plannerDaysToShow = 7;
 
                 for (let i = 0; i < plannerDaysToShow; i++) {
                     const tDate = new Date();
@@ -183,35 +200,54 @@
                         return eventDate === tStr;
                     }));
                     
-                    const label = i === 0 ? "TODAY" : tDate.toLocaleDateString('default', { weekday:'short', day:'numeric' }).toUpperCase();
-                    eventList.insertAdjacentHTML('beforeend', `<div class="planner-date-header">${label}</div>`);
+                    const header = document.createElement('div');
+                    header.className = 'planner-date-header';
+                    header.textContent = i === 0 ? "TODAY" : tDate.toLocaleDateString('default', { weekday:'short', day:'numeric' }).toUpperCase();
+                    plannerFragment.appendChild(header);
                     
                     if (dayEvents.length === 0) {
-                        eventList.insertAdjacentHTML('beforeend', `<div class="event-item no-events" style="border-left-color: var(--border);"><div class="title">No Events</div></div>`);
+                        const item = document.createElement('div');
+                        item.className = 'event-item no-events';
+                        item.style.borderLeftColor = 'var(--border)';
+                        item.innerHTML = `<div class="title">No Events</div>`;
+                        plannerFragment.appendChild(item);
                     } else {
                         dayEvents.forEach(e => {
                             const time = e.start.date ? "ALL DAY" : new Date(e.start.dateTime).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}).replace(' ', '').toLowerCase();
-                            eventList.insertAdjacentHTML('beforeend', `
-                                <div class="event-item" style="border-left-color:${e.color}">
-                                    <div class="time">${time}</div>
-                                    <div class="title">${e.summary}</div>
-                                </div>`);
+                            const item = document.createElement('div');
+                            item.className = 'event-item';
+                            item.style.borderLeftColor = e.color;
+                            item.innerHTML = `
+                                <div class="time">${time}</div>
+                                <div class="title">${e.summary}</div>`;
+                            plannerFragment.appendChild(item);
                         });
                     }
                 }
+                eventList.innerHTML = ''; // Clear previous
+                eventList.appendChild(plannerFragment);
+                // No lucide icons in planner events, so no need to call lucide.createIcons here.
 
                 // Legend
-                document.getElementById('docked-legend').innerHTML = data.legend.map(item => `
-                    <div class="key-item"><span class="dot" style="background:${item.color}"></span> ${item.name.toUpperCase()}</div>
-                `).join('');
+                const legendFragment = document.createDocumentFragment();
+                data.legend.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'key-item';
+                    div.innerHTML = `<span class="dot" style="background:${item.color}"></span> ${item.name.toUpperCase()}`;
+                    legendFragment.appendChild(div);
+                });
+                dockedLegend.innerHTML = ''; // Clear previous
+                dockedLegend.appendChild(legendFragment);
 
                 // Calendar Grid
-                const calendarGrid = document.getElementById('grid');
-                calendarGrid.innerHTML = ''; // Clear previous grid
+                const calendarFragment = document.createDocumentFragment();
                 
                 // Add day headers
                 ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].forEach(d => {
-                    calendarGrid.insertAdjacentHTML('beforeend', `<div class="day-header">${d}</div>`);
+                    const header = document.createElement('div');
+                    header.className = 'day-header';
+                    header.textContent = d;
+                    calendarFragment.appendChild(header);
                 });
 
                 const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -222,7 +258,7 @@
                 startDate.setDate(firstDayOfMonth.getDate() - startingDay); // Go back to the first day of the week
 
                 const totalCells = 42; // 6 weeks * 7 days
-                document.getElementById('month-header').textContent = now.toLocaleDateString('default', { month: 'long', year: 'numeric' }).toUpperCase();
+                monthHeader.textContent = now.toLocaleDateString('default', { month: 'long', year: 'numeric' }).toUpperCase();
 
                 for (let i = 0; i < totalCells; i++) {
                     const currentDay = new Date(startDate);
@@ -258,28 +294,33 @@
                         eventsHtml += `<div class="cell-event" style="border-left-color:${e.color}"><span class="cell-time">${time}</span> ${e.summary}</div>`;
                     });
 
-                    calendarGrid.insertAdjacentHTML('beforeend', `
-                        <div class="day-cell ${isOtherMonth ? 'other-month' : ''} ${isToday ? 'today' : ''}">
-                            <div class="day-number">${currentDay.getDate()}</div>
-                            <div class="cell-events">${eventsHtml}</div>
-                        </div>`);
+                    const dayCell = document.createElement('div');
+                    dayCell.className = `day-cell ${isOtherMonth ? 'other-month' : ''} ${isToday ? 'today' : ''}`;
+                    dayCell.innerHTML = `
+                        <div class="day-number">${currentDay.getDate()}</div>
+                        <div class="cell-events">${eventsHtml}</div>`;
+                    calendarFragment.appendChild(dayCell);
                 }
 
-                // Render Lucide icons after new HTML is injected
-                lucide.createIcons();
+                calendarGrid.innerHTML = ''; // Clear previous
+                calendarGrid.appendChild(calendarFragment);
+                // No lucide icons in calendar events, so no need to call lucide.createIcons here.
+
+                // Create Lucide icons for the main weather icon, which is updated via innerHTML
+                lucide.createIcons({ container: weatherMainIcon });
 
             } catch (error) {
                 console.error('Failed to update dashboard:', error);
-                document.getElementById('connection-warning').classList.remove('hidden');
+                connectionWarning.classList.remove('hidden');
                 // Optionally clear dynamic content and show loading spinners
-                document.getElementById('event-list').innerHTML = '<div class="spinner"></div>';
-                document.getElementById('weather-main-icon').innerHTML = '<div class="spinner"></div>';
-                document.getElementById('forecast-grid').innerHTML = '<div class="spinner"></div>';
-                document.getElementById('grid').innerHTML = '<div class="spinner"></div>';
-                document.getElementById('docked-legend').innerHTML = '<div class="spinner"></div>';
-                document.getElementById('month-header').textContent = 'CONNECTION ERROR';
-                document.getElementById('weather-temp').textContent = '--°';
-                document.getElementById('weather-condition').textContent = 'ERROR';
+                eventList.innerHTML = '<div class="spinner"></div>';
+                weatherMainIcon.innerHTML = '<div class="spinner"></div>';
+                forecastGrid.innerHTML = '<div class="spinner"></div>';
+                calendarGrid.innerHTML = '<div class="spinner"></div>';
+                dockedLegend.innerHTML = '<div class="spinner"></div>';
+                monthHeader.textContent = 'CONNECTION ERROR';
+                weatherTemp.textContent = '--°';
+                weatherCondition.textContent = 'ERROR';
             }
         }
 
