@@ -56,5 +56,51 @@ THEME_ENTITY = "input_boolean.calendar_dashboard_dark_mode"
 # Screen blanking control entity (set to 'on' to blank screen)
 SCREEN_BLANK_ENTITY = "input_boolean.calendar_dashboard_blank_screen"
 
+# ==================== SHOPPING LIST ====================
+# Home Assistant todo entity for the grocery/shopping list
+SHOPPING_LIST_ENTITY = "todo.shopping_list"
+
+# Category rules: first matching keyword wins. Order matters — put specific
+# compound terms (e.g. "frozen") before broad ones (e.g. "vegetable").
+# All comparisons are case-insensitive substring matches.
+GROCERY_CATEGORIES = [
+    {"keywords": ["frozen"],                                          "category": "Frozen"},
+    {"keywords": ["chip", "cracker", "pretzel", "snack", "popcorn"], "category": "Snacks"},
+    {"keywords": ["apple", "banana", "berry", "grape", "lemon", "lime",
+                  "orange", "peach", "pear", "strawberr", "tomato",
+                  "lettuce", "spinach", "carrot", "celery", "onion",
+                  "potato", "broccoli", "pepper", "cucumber", "zucchini",
+                  "avocado", "mushroom", "garlic", "herb", "produce"],  "category": "Produce"},
+    {"keywords": ["milk", "cheese", "yogurt", "butter", "cream", "egg",
+                  "dairy"],                                             "category": "Dairy & Eggs"},
+    {"keywords": ["chicken", "beef", "pork", "turkey", "fish", "salmon",
+                  "shrimp", "meat", "steak", "bacon", "sausage"],       "category": "Meat & Seafood"},
+    {"keywords": ["bread", "bagel", "roll", "bun", "muffin", "tortilla",
+                  "wrap", "pita", "bakery"],                            "category": "Bakery & Bread"},
+    {"keywords": ["pasta", "rice", "cereal", "oat", "flour", "sugar",
+                  "oil", "vinegar", "sauce", "soup", "can", "bean",
+                  "lentil", "grain"],                                   "category": "Pantry"},
+    {"keywords": ["juice", "soda", "water", "coffee", "tea", "drink",
+                  "beverage", "beer", "wine"],                          "category": "Beverages"},
+    {"keywords": ["soap", "shampoo", "detergent", "cleaner", "tissue",
+                  "toilet", "paper towel", "trash bag", "household"],   "category": "Household"},
+    {"keywords": ["vitamin", "medicine", "bandage", "pharmacy"],        "category": "Health"},
+]
+
+# Controls the display order of categories in the grocery panel.
+# Any category not listed here is appended alphabetically; "Other" is always last.
+GROCERY_CATEGORY_ORDER = [
+    "Produce",
+    "Dairy & Eggs",
+    "Meat & Seafood",
+    "Bakery & Bread",
+    "Frozen",
+    "Pantry",
+    "Snacks",
+    "Beverages",
+    "Household",
+    "Health",
+]
+
 # ==================== DISPLAY SETTINGS ====================
-PLANNER_DAYS = 7                   # Number of days to show in planner (1-14)
+PLANNER_DAYS = 3                   # Number of days to show in planner (1-14)

@@ -3,6 +3,7 @@
     --bg-panel: #1e1e1e; /* Darker panel background */
     --bg-element: #2a2a2a; /* Element background */
     --text-primary: #ffffff; /* White text */
+    --text-secondary: #dddddd; /* Subdued but readable — between dim and primary */
     --text-dim: #bbbbbb; /* Dimmed text */
     --accent: #00bcd4; /* Cyan accent color */
     --border: #333333; /* Border color */
@@ -14,6 +15,7 @@ body.light-theme {
     --bg-panel: #ffffff; /* White panel background */
     --bg-element: #e0e4eb; /* Light element background */
     --text-primary: #333333; /* Dark text */
+    --text-secondary: #555555; /* Subdued but readable — between dim and primary */
     --text-dim: #777777; /* Dimmed text */
     --accent: #03a9f4; /* Blue accent color */
     --border: #cccccc; /* Light border color */
@@ -50,7 +52,7 @@ html, body {
 
 /* Sidebar styles */
 #sidebar {
-    flex: 0 0 25vmin; /* Fixed width using vmin */
+    flex: 0 0 30vmin; /* Wider to fit larger event text */
     display: flex;
     flex-direction: column;
     gap: 1.5vmin;
@@ -83,42 +85,149 @@ html, body {
 }
 
 #clock-time {
-    font-size: 8vmin;
+    font-size: 10vmin;
     font-weight: 700;
     color: var(--accent);
-    line-height: 0.9; /* Adjust line height for better spacing */
+    line-height: 0.9;
 }
 
 #clock-ampm {
-    font-size: 2vmin;
+    font-size: 2.8vmin;
     opacity: 0.8;
     margin-left: 0.5vmin;
 }
 
 #digital-date {
-    font-size: 2vmin;
+    font-size: 2.6vmin;
     font-weight: 500;
     color: var(--text-dim);
     margin-top: 0.5vmin;
 }
 
+/* Planner and grocery each take half the remaining sidebar height.
+   flex: 1 1 0 means they grow/shrink equally from a 0 base, so they
+   always split the available space 50/50 regardless of content height.
+   This avoids any JS height measurement and causes zero layout thrash. */
 #planner {
-    flex-grow: 1;
+    flex: 1 1 0;
+    min-height: 0; /* Required: lets flex children shrink below content size */
     background: var(--bg-panel);
     border-radius: 1vmin;
     padding: 1.5vmin;
     border: 1px solid var(--border);
-    overflow-y: auto; /* Enable scrolling for events */
-    scrollbar-width: none; /* Hide scrollbar for Firefox */
-    -ms-overflow-style: none; /* Hide scrollbar for IE/Edge */
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 #planner::-webkit-scrollbar {
-    display: none; /* Hide scrollbar for Chrome/Safari */
+    display: none;
+}
+
+/* ── Grocery / Shopping List panel ────────────────────────────────── */
+#grocery {
+    flex: 1 1 0;
+    min-height: 0; /* Required: same as #planner */
+    background: var(--bg-panel);
+    border-radius: 1vmin;
+    padding: 1.5vmin;
+    border: 1px solid var(--border);
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    display: flex;
+    flex-direction: column;
+}
+#grocery::-webkit-scrollbar {
+    display: none;
+}
+
+/* Panel heading — matches planner's .planner-date-header style but
+   uses a static label so we only need one rule, not a repeating one. */
+#grocery-heading {
+    color: var(--accent);
+    font-size: 2.4vmin;
+    font-weight: 600;
+    padding-bottom: 0.5vmin;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1vmin;
+    flex-shrink: 0;
+}
+
+/* Scrollable content region inside the panel */
+#grocery-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+#grocery-list::-webkit-scrollbar {
+    display: none;
+}
+
+/* Category sub-heading: slightly smaller than the panel heading,
+   dimmed so it recedes behind the item text */
+.grocery-category-header {
+    font-size: 2.0vmin;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 1.2vmin;
+    margin-bottom: 0.4vmin;
+    padding-left: 0.2vmin;
+}
+/* Suppress the top margin on the very first category header to avoid
+   dead space at the top of the list */
+#grocery-list .grocery-category-header:first-child {
+    margin-top: 0;
+}
+
+/* Individual shopping item */
+.shopping-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8vmin;
+    padding: 0.5vmin 0.6vmin;
+    margin-bottom: 0.3vmin;
+    background: var(--bg-element);
+    border-radius: 0.5vmin;
+    font-size: 1.8vmin;
+    line-height: 1;
+    /* opacity transition is compositor-only — safe on Pi */
+    transition: opacity 0.2s ease;
+}
+
+/* Checkbox-style dot: accent colour for pending, dimmed for done */
+.shopping-item-dot {
+    width: 1.0vmin;
+    height: 1.0vmin;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--accent);
+}
+
+.shopping-item-name {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Completed items: dimmed + strikethrough so they are visually
+   subordinate without being invisible */
+.shopping-item.done {
+    opacity: 0.45;
+}
+.shopping-item.done .shopping-item-dot {
+    background: var(--text-dim);
+}
+.shopping-item.done .shopping-item-name {
+    text-decoration: line-through;
 }
 
 .planner-date-header {
     color: var(--accent);
-    font-size: 1.8vmin;
+    font-size: 2.4vmin;
     font-weight: 600;
     margin-top: 1.5vmin;
     padding-bottom: 0.5vmin;
@@ -135,8 +244,8 @@ html, body {
     background: var(--bg-element);
     border-left: 0.5vmin solid;
     border-radius: 0.5vmin;
-    font-size: 1.6vmin;
-    line-height: 1.3;
+    font-size: 1.8vmin;
+    line-height: 1;
 }
 .event-item.no-events {
     opacity: 0.7;
@@ -145,11 +254,11 @@ html, body {
     background: none;
 }
 .event-item .time {
-    font-size: 1.2vmin;
+    font-size: 1.6vmin;
     font-weight: 600;
     color: var(--text-dim);
     flex-shrink: 0;
-    width: 6vmin; /* Fixed width for time */
+    width: 8vmin;
     text-align: right;
 }
 .event-item .title {
@@ -165,7 +274,7 @@ html, body {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    gap: 1.5vmin;
+    gap: 1vmin;
     min-width: 0; /* Allow column to shrink */
 }
 
@@ -176,7 +285,7 @@ html, body {
     display: flex;
     align-items: center;
     border: 1px solid var(--border);
-    min-height: 10vmin; /* Ensure consistent height */
+    min-height: 8vmin; /* Ensure consistent height */
 }
 
 #current-weather {
@@ -188,19 +297,19 @@ html, body {
 }
 
 #weather-main-icon svg {
-    width: 6vmin;
-    height: 6vmin;
+    width: 7vmin;
+    height: 7vmin;
     stroke: var(--accent);
     stroke-width: 2;
 }
 
 #weather-temp {
-    font-size: 5vmin;
+    font-size: 6vmin;
     font-weight: 700;
 }
 
 #weather-condition {
-    font-size: 2vmin;
+    font-size: 2.6vmin;
     font-weight: 500;
     text-transform: uppercase;
     color: var(--text-dim);
@@ -222,21 +331,41 @@ html, body {
 }
 
 .f-name {
-    font-size: 1.8vmin;
+    font-size: 2.4vmin;
     font-weight: 600;
     color: var(--text-dim);
 }
 
 .f-icon svg {
-    width: 3.5vmin;
-    height: 3.5vmin;
+    width: 4.5vmin;
+    height: 4.5vmin;
     stroke: var(--accent);
     stroke-width: 2;
 }
 
 .f-temp {
-    font-size: 2.5vmin;
+    font-size: 2.6vmin;
     font-weight: 700;
+    display: flex;
+    gap: 0.3vmin;
+    align-items: baseline;
+}
+
+.f-hi {
+    color: var(--text-primary);
+}
+
+.f-lo {
+    color: var(--text-dim);
+    font-weight: 500;
+    font-size: 2.2vmin;
+}
+
+.f-precip {
+    font-size: 2vmin;
+    color: var(--accent);
+    font-weight: 500;
+    opacity: 0.8;
 }
 
 #calendar-view {
@@ -251,7 +380,7 @@ html, body {
 }
 
 #month-header {
-    font-size: 2.5vmin;
+    font-size: 3vmin;
     font-weight: 700;
     text-align: center;
     margin-bottom: 1vmin;
@@ -267,7 +396,7 @@ html, body {
 }
 
 .day-header {
-    font-size: 1.5vmin;
+    font-size: 2vmin;
     font-weight: 600;
     color: var(--text-dim);
     text-align: center;
@@ -281,7 +410,7 @@ html, body {
     display: flex;
     flex-direction: column;
     position: relative;
-    min-height: 8vmin; /* Ensure minimum height */
+    min-height: 6.5vmin; /* Ensure minimum height */
 }
 
 .day-cell.today {
@@ -295,7 +424,7 @@ html, body {
 }
 
 .day-number {
-    font-size: 2vmin;
+    font-size: 2.4vmin;
     font-weight: 700;
     margin-bottom: 0.5vmin;
     text-align: right; /* Align day number to right */
@@ -310,7 +439,7 @@ html, body {
 }
 
 .cell-event {
-    font-size: 1.3vmin;
+    font-size: 2.0vmin;
     font-weight: 500;
     border-left: 0.4vmin solid;
     padding-left: 0.4vmin;
@@ -325,7 +454,13 @@ html, body {
 .cell-event.all-day-row {
     font-style: italic;
     background: rgba(255, 255, 255, 0.05); /* Lighter background for all-day */
-    margin-top: 0.2vmin;
+}
+
+.all-day-anchor {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2vmin;
 }
 
 #docked-legend {
@@ -343,13 +478,13 @@ html, body {
     display: flex;
     align-items: center;
     gap: 0.8vmin;
-    font-size: 1.5vmin;
+    font-size: 2vmin;
     font-weight: 600;
 }
 
 .dot {
-    width: 1.2vmin;
-    height: 1.2vmin;
+    width: 1.6vmin;
+    height: 1.6vmin;
     border-radius: 50%;
     flex-shrink: 0;
 }
@@ -377,8 +512,8 @@ html, body {
 /* Responsive adjustments (though kiosk mode might fix resolution, good practice) */
 @media (max-aspect-ratio: 16/9) {
     #sidebar { flex: 0 0 30vmin; } /* Slightly wider sidebar on narrower screens */
-    #clock-time { font-size: 7vmin; }
-    #weather-temp { font-size: 4vmin; }
+    #clock-time { font-size: 9vmin; }
+    #weather-temp { font-size: 5vmin; }
 }
 
 @media (max-width: 800px) {
