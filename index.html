@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>HAPi Dashboard</title>
+    <link rel="stylesheet" href="./style.css">
+    <!-- Lucide icons are lightweight and performant -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="./config.js"></script>
+</head>
+<body>
+    <div id="dashboard-layout">
+        <aside id="sidebar">
+            <div id="clock-section">
+                <div id="connection-warning" class="hidden">
+                    <i data-lucide="cloud-off" style="width: 5vmin; height: 5vmin;"></i>
+                    <p style="margin-top: 1vmin;">OFFLINE</p>
+                </div>
+                <div id="clock-container">
+                    <span id="clock-time">--:--</span><span id="clock-ampm">--</span>
+                </div>
+                <div id="digital-date">Loading...</div>
+            </div>
+
+            <div id="planner">
+                <div id="event-list">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+
+            <div id="grocery" aria-label="Grocery list">
+                <div id="grocery-heading">GROCERY LIST</div>
+                <div id="grocery-list" role="list">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </aside>
+
+        <div id="main-column">
+            <header id="weather-bar">
+                <div id="current-weather">
+                    <div id="weather-main-icon"><div class="spinner"></div></div>
+                    <div id="weather-details">
+                        <div id="weather-temp">--°</div>
+                        <div id="weather-condition">LOADING...</div>
+                    </div>
+                </div>
+                <div id="forecast-grid">
+                    <div class="spinner"></div>
+                </div>
+            </header>
+
+            <main id="calendar-view">
+                <h1 id="month-header">LOADING...</h1>
+                <div id="grid">
+                    <!-- Day headers injected here -->
+                    <div class="spinner"></div>
+                </div>
+            </main>
+
+            <footer id="docked-legend">
+                <div class="spinner"></div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="./dashboard.js"></script>
+</body>
+</html>
