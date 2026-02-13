@@ -24,12 +24,7 @@
                     <span id="clock-time">--:--</span><span id="clock-ampm">--</span>
                 </div>
                 <div id="digital-date">Loading...</div>
-            </div>
-
-            <div id="planner">
-                <div id="event-list">
-                    <div class="spinner"></div>
-                </div>
+                <div id="indoor-climate"></div>
             </div>
 
             <div id="grocery" aria-label="Grocery list">
@@ -38,15 +33,22 @@
                     <div class="spinner"></div>
                 </div>
             </div>
+
+            <div id="dinner-section" aria-label="Dinner planner">
+                <div id="dinner-heading">WHAT'S FOR DINNER?</div>
+                <div id="dinner-content"></div>
+            </div>
         </aside>
 
         <div id="main-column">
             <header id="weather-bar">
                 <div id="current-weather">
                     <div id="weather-main-icon"><div class="spinner"></div></div>
+                    <div id="weather-temp">--°</div>
                     <div id="weather-details">
-                        <div id="weather-temp">--°</div>
                         <div id="weather-condition">LOADING...</div>
+                        <div id="weather-precip"></div>
+                        <div id="weather-humidity"></div>
                     </div>
                 </div>
                 <div id="forecast-grid">
@@ -62,9 +64,6 @@
                 </div>
             </main>
 
-            <footer id="docked-legend">
-                <div class="spinner"></div>
-            </footer>
         </div>
     </div>
 

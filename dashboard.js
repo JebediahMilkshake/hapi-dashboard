@@ -10,6 +10,16 @@
  *   lucide  — Lucide icon library loaded from CDN
  */
 
+/* ── Auth note ────────────────────────────────────────────────────────
+ * Even though this page is served from HA's own www folder (same origin,
+ * http://ha:8123/local/…), the HA REST API (/api/) does NOT honour browser
+ * session cookies.  Every REST request and the WebSocket auth handshake
+ * must carry an explicit "Authorization: Bearer <token>" header.
+ * The long-lived access token in CONFIG.HA_TOKEN is therefore always
+ * required regardless of origin.
+ * See: https://developers.home-assistant.io/docs/api/rest/
+ * ──────────────────────────────────────────────────────────────────── */
+
 /* ================================================================== *
  *  1. HA API Helper
  * ================================================================== */
@@ -83,7 +93,8 @@ var cache = {
     weather:  { data: null, timestamp: null },
     theme:    { data: null, timestamp: null },
     forecast: { data: null, timestamp: null },
-    shopping: { data: null, timestamp: null }
+    shopping: { data: null, timestamp: null },
+    dinner:   { data: null, timestamp: null }
 };
 
 /**
@@ -103,6 +114,15 @@ function isCacheValid(key) {
 
 /**
  * Fetch current weather state.  Cached for CONFIG.CACHE_DURATION.weather seconds.
+ *
+ * Update strategy: two complementary paths keep weather current:
+ *   1. Reactive — WebSocket state_changed on CONFIG.WEATHER_ENTITY busts the
+ *      cache and calls updateDashboard() immediately (via _debouncedDashboardUpdate).
+ *   2. Polling  — setInterval(updateDashboard, 60000) fires every 60 s as a
+ *      safety net in case the WebSocket is temporarily disconnected.
+ * The 60-second cache TTL matches the polling interval so a polling cycle
+ * always fetches fresh data while the WebSocket path forces an immediate fetch
+ * by nulling the timestamp before calling updateDashboard().
  */
 function fetchWeather() {
     if (isCacheValid('weather')) {
@@ -153,29 +173,78 @@ function fetchForecast() {
             } catch (e) {
                 console.error('Forecast parse error:', e);
             }
+            cache.forecast.data = forecasts;
+            cache.forecast.timestamp = Date.now();
         }
-        cache.forecast.data = forecasts;
-        cache.forecast.timestamp = Date.now();
         return forecasts;
     });
 }
 
 /**
- * Fetch calendar events for all configured calendars.
- * Events are always fetched fresh (no cache) because they change frequently.
- *
- * @param {boolean} isDark  Current theme — selects color_dark or color_light.
- * @returns {Promise<Array>}  Flat array of event objects with color & priority attached.
+ * Fetch indoor climate data from the thermostat entity.
+ * Returns {temperature, humidity} or null on failure.
  */
-function fetchCalendarEvents(isDark) {
-    var now = new Date();
-    var start = new Date(now);
-    start.setDate(now.getDate() - 3);
-    var end = new Date(now);
-    end.setDate(now.getDate() + 14);
+function fetchIndoorClimate() {
+    return haFetch('states/' + CONFIG.THERMOSTAT_ENTITY).then(function (data) {
+        if (data && data.attributes) {
+            return {
+                temperature: data.attributes.current_temperature,
+                humidity: data.attributes.current_humidity
+            };
+        }
+        return null;
+    });
+}
 
-    var startISO = start.toISOString();
-    var endISO = end.toISOString();
+/**
+ * Calculate the start and end dates for the 6-week calendar grid.
+ *
+ * The grid always shows 42 cells (6 rows x 7 cols).  Row 0 starts on the
+ * Sunday on or before the 1st of the current month, and the grid ends
+ * exactly 42 days later.  These dates are used both to render the grid cells
+ * and to determine the fetch window for calendar events so every visible
+ * cell can show events — no more, no less.
+ *
+ * @param {Date} now  Reference date (usually new Date()).
+ * @returns {{ gridStart: Date, gridEnd: Date }}
+ *   gridStart — first day shown in the grid (inclusive)
+ *   gridEnd   — day AFTER the last cell (exclusive, for ISO range queries)
+ */
+function calcGridDateRange(now) {
+    var firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    // getDay() returns 0=Sun … 6=Sat.  Subtract it to reach the preceding Sunday.
+    var gridStart = new Date(firstOfMonth);
+    gridStart.setDate(firstOfMonth.getDate() - firstOfMonth.getDay());
+
+    // Exclusive end: day after the 42nd cell
+    var gridEnd = new Date(gridStart);
+    gridEnd.setDate(gridStart.getDate() + 42);
+
+    return { gridStart: gridStart, gridEnd: gridEnd };
+}
+
+/**
+ * Fetch calendar events for all configured calendars, covering the exact
+ * 6-week grid window so every visible cell can render its events.
+ *
+ * Events are always fetched fresh (no cache) because they change frequently
+ * and there is no server-side cache invalidation mechanism for calendars.
+ *
+ * Calendar entity state changes in HA (e.g. a new event is added) trigger
+ * a state_changed WebSocket event on the calendar entity.  Those entities
+ * are listed in _dashboardEntities, so _debouncedDashboardUpdate() fires,
+ * which busts weather/theme/forecast caches and calls updateDashboard().
+ * updateDashboard() always calls fetchCalendarEvents() fresh, so calendar
+ * data is always up to date after a WebSocket-triggered refresh.
+ *
+ * @param {boolean} isDark     Current theme — selects color_dark or color_light.
+ * @param {Date}    gridStart  First day of the 6-week grid (from calcGridDateRange).
+ * @param {Date}    gridEnd    Exclusive end date of the 6-week grid.
+ * @returns {Promise<Array>}   Flat array of event objects with color & priority attached.
+ */
+function fetchCalendarEvents(isDark, gridStart, gridEnd) {
+    var startISO = gridStart.toISOString();
+    var endISO   = gridEnd.toISOString();
 
     var promises = [];
     for (var i = 0; i < CONFIG.CALENDARS.length; i++) {
@@ -249,8 +318,10 @@ function fetchShoppingItems() {
             var bVal = b.status === 'needs_action' ? 0 : 1;
             return aVal - bVal;
         });
-        cache.shopping.data = normalised;
-        cache.shopping.timestamp = Date.now();
+        if (resp) {
+            cache.shopping.data = normalised;
+            cache.shopping.timestamp = Date.now();
+        }
         return normalised;
     });
 }
@@ -338,12 +409,14 @@ var connectionWarning = document.getElementById('connection-warning');
 var weatherMainIcon   = document.getElementById('weather-main-icon');
 var weatherTemp       = document.getElementById('weather-temp');
 var weatherCondition  = document.getElementById('weather-condition');
+var weatherHumidity   = document.getElementById('weather-humidity');
+var weatherPrecip     = document.getElementById('weather-precip');
 var forecastGrid      = document.getElementById('forecast-grid');
-var eventList         = document.getElementById('event-list');
 var groceryList       = document.getElementById('grocery-list');
-var dockedLegend      = document.getElementById('docked-legend');
 var calendarGrid      = document.getElementById('grid');
 var monthHeader       = document.getElementById('month-header');
+var indoorClimate     = document.getElementById('indoor-climate');
+var dinnerContent     = document.getElementById('dinner-content');
 
 /**
  * Update the clock and date display (12-hour format with ordinal suffix).
@@ -418,6 +491,29 @@ function getWeatherIcon(condition, sizeClass) {
     return '<i data-lucide="' + iconName + '" class="' + sizeClass + '"></i>';
 }
 
+/** Map HA weather condition keys to human-readable labels. */
+var _conditionLabels = {
+    'sunny':          'SUNNY',
+    'clearnight':     'CLEAR NIGHT',
+    'clear-night':    'CLEAR NIGHT',
+    'cloudy':         'CLOUDY',
+    'fog':            'FOG',
+    'hail':           'HAIL',
+    'lightning':      'LIGHTNING',
+    'lightningrain':  'LTNG & RAIN',
+    'lightning-rainy':'LTNG & RAIN',
+    'partlycloudy':   'PARTLY CLOUDY',
+    'pouring':        'POURING',
+    'rainy':          'RAINY',
+    'snowy':          'SNOWY',
+    'snowyrainy':     'SNOW & RAIN',
+    'snowy-rainy':    'SNOW & RAIN',
+    'windy':          'WINDY',
+    'windyvariant':   'WINDY',
+    'windy-variant':  'WINDY',
+    'exceptional':    'EXCEPTIONAL'
+};
+
 /**
  * Sort events: timed events by dateTime ascending, all-day events by priority.
  * Returns a new array (timed first, then all-day).
@@ -452,8 +548,7 @@ function renderShoppingList(grouped) {
 
     if (!grouped || grouped.length === 0) {
         var empty = document.createElement('div');
-        empty.className = 'event-item no-events';
-        empty.style.borderLeftColor = 'var(--border)';
+        empty.className = 'grocery-empty';
         empty.textContent = 'List is empty';
         fragment.appendChild(empty);
     } else {
@@ -499,6 +594,21 @@ function renderShoppingList(grouped) {
 /**
  * Fetch all dashboard data (theme, weather, forecast, calendar events)
  * and update the entire DOM.  Called once on load, then every 60 seconds.
+ *
+ * Weather update strategy (two complementary paths):
+ *   Reactive path — WebSocket state_changed on WEATHER_ENTITY busts the cache
+ *     and calls this function immediately.
+ *   Polling path  — setInterval(updateDashboard, 60000) fires every 60 s as a
+ *     safety net when the WebSocket is disconnected or idle.
+ * Both paths are needed: the WebSocket gives sub-second latency on changes,
+ * the poll guarantees recovery if the socket was down during an update.
+ *
+ * Calendar update strategy:
+ *   Calendar entities are in _dashboardEntities.  Any state_changed event on
+ *   them (new event, edit, delete) triggers _debouncedDashboardUpdate(), which
+ *   calls this function.  fetchCalendarEvents() has no cache — it always fetches
+ *   fresh — so the calendar data is immediately up to date after each WebSocket
+ *   trigger.  The 60-second poll provides the same fallback as for weather.
  */
 function updateDashboard() {
     // Fetch theme first — the result determines calendar event colours.
@@ -506,34 +616,80 @@ function updateDashboard() {
         // Apply theme class
         document.body.className = isDark ? '' : 'light-theme';
 
-        // Build legend data from CONFIG.CALENDARS and current theme
-        var legendData = [];
-        for (var i = 0; i < CONFIG.CALENDARS.length; i++) {
-            var cal = CONFIG.CALENDARS[i];
-            legendData.push({
-                name: cal.name,
-                color: isDark ? cal.color_dark : cal.color_light
-            });
-        }
+        // Calculate the exact 6-week grid window once, share it with
+        // fetchCalendarEvents so the fetch range matches the rendered cells
+        // precisely.  This replaces the old fixed "now-3 / now+14" window which
+        // left the first and last rows of the grid without event data.
+        var now = new Date();
+        var gridRange = calcGridDateRange(now);
 
         // Fetch weather, forecast, and calendar events in parallel
         return Promise.all([
             fetchWeather(),
             fetchForecast(),
-            fetchCalendarEvents(isDark)
+            fetchCalendarEvents(isDark, gridRange.gridStart, gridRange.gridEnd),
+            fetchIndoorClimate()
         ]).then(function (results) {
             var weather = results[0];
             var forecast = results[1];
             var events = results[2];
+            var climate = results[3];
 
             // Hide connection warning on success
             connectionWarning.classList.add('hidden');
 
             // ── Weather ───────────────────────────────────────────
-            if (weather) {
+            if (weather && weather.state !== 'unavailable' && weather.state !== 'unknown') {
                 weatherMainIcon.innerHTML = getWeatherIcon(weather.state, 'large-icon');
-                weatherTemp.textContent = Math.round(weather.attributes.temperature) + '\u00B0';
-                weatherCondition.textContent = weather.state.toUpperCase().replace(/-/g, ' ');
+                var temp = weather.attributes && weather.attributes.temperature;
+                weatherTemp.textContent = (temp != null ? Math.round(temp) : '--') + '\u00B0';
+                weatherCondition.textContent = _conditionLabels[weather.state.toLowerCase()] || _conditionLabels[weather.state.toLowerCase().replace(/-/g, '')] || weather.state.toUpperCase();
+            } else {
+                if (!weather) {
+                    console.warn('Weather fetch returned null — verify WEATHER_ENTITY ("' +
+                        CONFIG.WEATHER_ENTITY + '") exists in HA (Developer Tools → States)');
+                } else {
+                    console.warn('Weather entity state is "' + weather.state +
+                        '" — check your HA weather integration');
+                }
+                weatherMainIcon.innerHTML = getWeatherIcon('cloudy', 'large-icon');
+                weatherTemp.textContent = '--\u00B0';
+                weatherCondition.textContent = 'UNAVAILABLE';
+            }
+
+            // ── Outdoor Humidity ───────────────────────────────────
+            if (weather && weather.attributes && weather.attributes.humidity != null) {
+                weatherHumidity.innerHTML =
+                    '<i data-lucide="droplets"></i> ' + Math.round(weather.attributes.humidity) + '%';
+                lucide.createIcons({ container: weatherHumidity });
+            } else {
+                weatherHumidity.textContent = '';
+            }
+
+            // ── Precipitation Probability ─────────────────────────
+            if (weather && weather.attributes && weather.attributes.precipitation_probability != null) {
+                weatherPrecip.innerHTML =
+                    '<i data-lucide="cloud-rain"></i> ' + Math.round(weather.attributes.precipitation_probability) + '%';
+                lucide.createIcons({ container: weatherPrecip });
+            } else {
+                weatherPrecip.textContent = '';
+            }
+
+            // ── Indoor Climate ────────────────────────────────────
+            if (climate) {
+                var climateHtml = '<span class="climate-label">ecobee:</span>';
+                if (climate.temperature != null) {
+                    climateHtml += '<span class="climate-pair"><i data-lucide="thermometer"></i> ' +
+                        climate.temperature.toFixed(1) + '\u00B0</span>';
+                }
+                if (climate.humidity != null) {
+                    climateHtml += '<span class="climate-pair"><i data-lucide="droplets"></i> ' +
+                        Math.round(climate.humidity) + '%</span>';
+                }
+                indoorClimate.innerHTML = climateHtml;
+                lucide.createIcons({ container: indoorClimate });
+            } else {
+                indoorClimate.textContent = '';
             }
 
             // ── Forecast ──────────────────────────────────────────
@@ -548,7 +704,7 @@ function updateDashboard() {
                     if (fi === 0) {
                         dayLabel = 'TODAY';
                     } else if (fi === 1) {
-                        dayLabel = 'TMRW';
+                        dayLabel = 'TOMORROW';
                     } else {
                         dayLabel = new Date(day.datetime).toLocaleDateString([], { weekday: 'short' }).toUpperCase();
                     }
@@ -571,89 +727,10 @@ function updateDashboard() {
             forecastGrid.appendChild(forecastFragment);
             lucide.createIcons({ container: forecastGrid });
 
-            // ── Planner (Sidebar Event List) ──────────────────────
-            var plannerFragment = document.createDocumentFragment();
-            var now = new Date();
-            var todayStr = getLocalDateStr(now);
-            var plannerDays = (CONFIG.PLANNER_DAYS !== undefined) ? CONFIG.PLANNER_DAYS : 7;
-
-            for (var pi = 0; pi < plannerDays; pi++) {
-                var tDate = new Date();
-                tDate.setDate(now.getDate() + pi);
-                var tStr = getLocalDateStr(tDate);
-
-                var dayEvents = sortEvents(events.filter(function (e) {
-                    var eventDate = e.start.date ||
-                        (e.start.dateTime ? getLocalDateStr(new Date(e.start.dateTime)) : null);
-                    return eventDate === tStr;
-                }));
-
-                var pHeader = document.createElement('div');
-                pHeader.className = 'planner-date-header';
-                pHeader.textContent = pi === 0
-                    ? 'TODAY'
-                    : tDate.toLocaleDateString('default', { weekday: 'short', day: 'numeric' }).toUpperCase();
-                plannerFragment.appendChild(pHeader);
-
-                if (dayEvents.length === 0) {
-                    var noEvt = document.createElement('div');
-                    noEvt.className = 'event-item no-events';
-                    noEvt.style.borderLeftColor = 'var(--border)';
-                    var noTitle = document.createElement('div');
-                    noTitle.className = 'title';
-                    noTitle.textContent = 'No Events';
-                    noEvt.appendChild(noTitle);
-                    plannerFragment.appendChild(noEvt);
-                } else {
-                    for (var ei = 0; ei < dayEvents.length; ei++) {
-                        var ev = dayEvents[ei];
-                        var timeStr = ev.start.date
-                            ? 'ALL DAY'
-                            : new Date(ev.start.dateTime)
-                                .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-                                .replace(' ', '')
-                                .toLowerCase();
-
-                        var evItem = document.createElement('div');
-                        evItem.className = 'event-item';
-                        evItem.style.borderLeftColor = ev.color;
-
-                        var timeDiv = document.createElement('div');
-                        timeDiv.className = 'time';
-                        timeDiv.textContent = timeStr;
-
-                        var titleDiv = document.createElement('div');
-                        titleDiv.className = 'title';
-                        titleDiv.textContent = ev.summary;
-
-                        evItem.appendChild(timeDiv);
-                        evItem.appendChild(titleDiv);
-                        plannerFragment.appendChild(evItem);
-                    }
-                }
-            }
-            eventList.innerHTML = '';
-            eventList.appendChild(plannerFragment);
-
-            // ── Legend ────────────────────────────────────────────
-            var legendFragment = document.createDocumentFragment();
-            for (var li = 0; li < legendData.length; li++) {
-                var lItem = legendData[li];
-                var keyDiv = document.createElement('div');
-                keyDiv.className = 'key-item';
-
-                var dotSpan = document.createElement('span');
-                dotSpan.className = 'dot';
-                dotSpan.style.background = lItem.color;
-
-                keyDiv.appendChild(dotSpan);
-                keyDiv.appendChild(document.createTextNode(' ' + lItem.name.toUpperCase()));
-                legendFragment.appendChild(keyDiv);
-            }
-            dockedLegend.innerHTML = '';
-            dockedLegend.appendChild(legendFragment);
-
             // ── Calendar Grid ─────────────────────────────────────
+            var todayStr = getLocalDateStr(now);
+            // The grid start date was already computed above in gridRange.gridStart.
+            // We reuse it here so the cells exactly match the event fetch window.
             var calFragment = document.createDocumentFragment();
 
             // Day-of-week headers
@@ -665,12 +742,8 @@ function updateDashboard() {
                 calFragment.appendChild(dh);
             }
 
-            var firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            var startingDay = firstDayOfMonth.getDay();
-            var startDate = new Date(firstDayOfMonth);
-            startDate.setDate(firstDayOfMonth.getDate() - startingDay);
-
-            var totalCells = 42; // 6 weeks
+            var startDate = gridRange.gridStart;
+            var totalCells = 42; // 6 weeks x 7 days
             monthHeader.textContent = now.toLocaleDateString('default', {
                 month: 'long',
                 year: 'numeric'
@@ -685,40 +758,79 @@ function updateDashboard() {
                 var isOtherMonth = currentDay.getMonth() !== now.getMonth();
 
                 var cellEvents = sortEvents(events.filter(function (e) {
-                    var eventDate = e.start.date ||
-                        (e.start.dateTime ? getLocalDateStr(new Date(e.start.dateTime)) : null);
-                    return eventDate === currentDayStr;
+                    if (e.start.date) {
+                        // All-day event: show on every day from start (inclusive) to end (exclusive)
+                        var endDate = (e.end && e.end.date) ? e.end.date : null;
+                        if (endDate) {
+                            return currentDayStr >= e.start.date && currentDayStr < endDate;
+                        }
+                        return currentDayStr === e.start.date;
+                    }
+                    // Timed event: match by start date
+                    if (e.start.dateTime) {
+                        return getLocalDateStr(new Date(e.start.dateTime)) === currentDayStr;
+                    }
+                    return false;
                 }));
 
-                // Limit events per cell for performance
+                // Separate events into: multi-day (top), timed, single all-day (bottom)
                 var maxEventsPerCell = 2;
                 var timedEvents = [];
-                var allDayEvents = [];
+                var multiDayEvents = [];
+                var singleAllDayEvents = [];
                 for (var ce = 0; ce < cellEvents.length; ce++) {
-                    if (cellEvents[ce].start.dateTime) {
-                        timedEvents.push(cellEvents[ce]);
-                    } else {
-                        allDayEvents.push(cellEvents[ce]);
+                    var evt = cellEvents[ce];
+                    if (evt.start.dateTime) {
+                        timedEvents.push(evt);
+                    } else if (evt.start.date) {
+                        // Multi-day: has an end date different from start date
+                        var evtEnd = (evt.end && evt.end.date) ? evt.end.date : null;
+                        var dayAfterStart = new Date(evt.start.date + 'T00:00:00');
+                        dayAfterStart.setDate(dayAfterStart.getDate() + 1);
+                        var dayAfterStr = getLocalDateStr(dayAfterStart);
+                        if (evtEnd && evtEnd > dayAfterStr) {
+                            multiDayEvents.push(evt);
+                        } else {
+                            singleAllDayEvents.push(evt);
+                        }
                     }
                 }
                 timedEvents = timedEvents.slice(0, maxEventsPerCell);
 
-                var filteredAllDay = [];
-                if (allDayEvents.length > 0) {
+                // Multi-day events bypass priority filtering — show all
+                // Single all-day events use priority filtering
+                var filteredSingleAllDay = [];
+                if (singleAllDayEvents.length > 0) {
                     var highestPriority = 99;
-                    for (var ap = 0; ap < allDayEvents.length; ap++) {
-                        var p = allDayEvents[ap].priority || 99;
+                    for (var ap = 0; ap < singleAllDayEvents.length; ap++) {
+                        var p = singleAllDayEvents[ap].priority || 99;
                         if (p < highestPriority) highestPriority = p;
                     }
-                    for (var af = 0; af < allDayEvents.length; af++) {
-                        if ((allDayEvents[af].priority || 99) === highestPriority) {
-                            filteredAllDay.push(allDayEvents[af]);
-                            if (filteredAllDay.length >= 1) break;
+                    for (var af = 0; af < singleAllDayEvents.length; af++) {
+                        if ((singleAllDayEvents[af].priority || 99) === highestPriority) {
+                            filteredSingleAllDay.push(singleAllDayEvents[af]);
+                            if (filteredSingleAllDay.length >= 1) break;
                         }
                     }
                 }
 
-                // Build cell HTML
+                // Build cell HTML — multi-day docked at top
+                var multiDayHtml = '';
+                if (multiDayEvents.length > 0) {
+                    multiDayHtml = '<div class="all-day-events">';
+                    for (var mi = 0; mi < multiDayEvents.length; mi++) {
+                        var mdEvent = multiDayEvents[mi];
+                        var isContinuation = mdEvent.start.date && mdEvent.start.date < currentDayStr;
+                        var contClass = isContinuation ? ' multi-day-continue' : '';
+                        var prefix = isContinuation ? '\u2026 ' : '';
+                        multiDayHtml += '<div class="cell-event all-day-row' + contClass +
+                            '" style="border-left-color:' + mdEvent.color + '">' +
+                            prefix + mdEvent.summary + '</div>';
+                    }
+                    multiDayHtml += '</div>';
+                }
+
+                // Timed events
                 var timedHtml = '';
                 for (var ti = 0; ti < timedEvents.length; ti++) {
                     var te = timedEvents[ti];
@@ -730,14 +842,13 @@ function updateDashboard() {
                         '"><span class="cell-time">' + cellTime + '</span> ' + te.summary + '</div>';
                 }
 
-                var allDayHtml = '';
-                if (filteredAllDay.length > 0) {
-                    allDayHtml = '<div class="all-day-anchor">';
-                    for (var ai = 0; ai < filteredAllDay.length; ai++) {
-                        allDayHtml += '<div class="cell-event all-day-row" style="border-left-color:' +
-                            filteredAllDay[ai].color + '">' + filteredAllDay[ai].summary + '</div>';
-                    }
-                    allDayHtml += '</div>';
+                // Single all-day events docked at bottom
+                var singleAllDayHtml = '';
+                for (var ai = 0; ai < filteredSingleAllDay.length; ai++) {
+                    var adEvent = filteredSingleAllDay[ai];
+                    singleAllDayHtml += '<div class="cell-event all-day-row' +
+                        '" style="border-left-color:' + adEvent.color + '">' +
+                        adEvent.summary + '</div>';
                 }
 
                 var dayCell = document.createElement('div');
@@ -746,7 +857,9 @@ function updateDashboard() {
                     (isToday ? ' today' : '');
                 dayCell.innerHTML =
                     '<div class="day-number">' + currentDay.getDate() + '</div>' +
-                    '<div class="cell-events">' + timedHtml + allDayHtml + '</div>';
+                    '<div class="cell-top-zone">' + multiDayHtml + '</div>' +
+                    '<div class="cell-events">' + timedHtml + '</div>' +
+                    '<div class="cell-events-bottom">' + singleAllDayHtml + '</div>';
                 calFragment.appendChild(dayCell);
             }
 
@@ -761,11 +874,9 @@ function updateDashboard() {
         connectionWarning.classList.remove('hidden');
 
         // Show spinners in dynamic areas
-        eventList.innerHTML = '<div class="spinner"></div>';
         weatherMainIcon.innerHTML = '<div class="spinner"></div>';
         forecastGrid.innerHTML = '<div class="spinner"></div>';
         calendarGrid.innerHTML = '<div class="spinner"></div>';
-        dockedLegend.innerHTML = '<div class="spinner"></div>';
         monthHeader.textContent = 'CONNECTION ERROR';
         weatherTemp.textContent = '--\u00B0';
         weatherCondition.textContent = 'ERROR';
@@ -798,7 +909,413 @@ function updateShoppingList() {
 }
 
 /* ================================================================== *
- *  7. Cursor Hiding (kiosk mode)
+ *  6b. Dinner Suggestions (Ollama + HA persistence)
+ * ================================================================== */
+
+/**
+ * Call the Ollama API to generate dinner suggestions.
+ * Returns parsed JSON array of meal objects, or null on failure.
+ */
+function callOllama(prompt) {
+    var url = CONFIG.OLLAMA_URL + '/api/generate';
+    console.log('[Dinner] Calling Ollama at: ' + url);
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function () { controller.abort(); }, 60000);
+
+    return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+            model: CONFIG.OLLAMA_MODEL,
+            prompt: prompt,
+            stream: false,
+            format: 'json'
+        })
+    })
+    .then(function (response) {
+        clearTimeout(timeoutId);
+        console.log('[Dinner] Ollama HTTP status: ' + response.status);
+        if (!response.ok) {
+            return response.text().then(function (t) {
+                console.warn('[Dinner] Ollama error body: ' + t);
+                return null;
+            });
+        }
+        return response.json();
+    })
+    .then(function (data) {
+        if (!data || !data.response) {
+            console.warn('[Dinner] Ollama returned no response field:', data);
+            return null;
+        }
+        console.log('[Dinner] Ollama raw response: ' + data.response.substring(0, 500));
+        try {
+            var parsed = JSON.parse(data.response);
+            // Accept either {meals: [...]} or direct [...]
+            if (Array.isArray(parsed)) return parsed;
+            if (parsed.meals && Array.isArray(parsed.meals)) return parsed.meals;
+            console.warn('[Dinner] Ollama JSON has no meals array:', parsed);
+            return null;
+        } catch (e) {
+            console.error('[Dinner] Ollama JSON parse error:', e, data.response);
+            return null;
+        }
+    })
+    .catch(function (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+            console.error('[Dinner] Ollama timeout (60s)');
+        } else {
+            console.error('[Dinner] Ollama fetch error:', err.message || err);
+        }
+        return null;
+    });
+}
+
+/**
+ * Save dinner suggestions to HA as a virtual sensor's attributes.
+ * No HA helper setup needed — POST /api/states creates it on the fly.
+ */
+function saveDinnerToHA(meals) {
+    return haFetch('states/' + CONFIG.DINNER_ENTITY, 'POST', {
+        state: 'ok',
+        attributes: {
+            meals: meals,
+            generated_at: new Date().toISOString(),
+            friendly_name: 'Dinner Suggestions'
+        }
+    });
+}
+
+/**
+ * Read dinner suggestions from HA sensor entity.
+ * Returns {meals, generated_at} or null if not found/empty.
+ */
+function readDinnerFromHA() {
+    if (isCacheValid('dinner')) {
+        return Promise.resolve(cache.dinner.data);
+    }
+    return haFetch('states/' + CONFIG.DINNER_ENTITY).then(function (data) {
+        if (data && data.attributes && data.attributes.meals) {
+            var result = {
+                meals: data.attributes.meals,
+                generated_at: data.attributes.generated_at || null
+            };
+            cache.dinner.data = result;
+            cache.dinner.timestamp = Date.now();
+            return result;
+        }
+        return null;
+    }).catch(function () {
+        return null;
+    });
+}
+
+/**
+ * Check if stored dinner data is stale (older than DINNER_REFRESH_HOURS).
+ */
+function isDinnerStale(generatedAt) {
+    if (!generatedAt) return true;
+    var genTime = new Date(generatedAt).getTime();
+    var ageHours = (Date.now() - genTime) / (1000 * 60 * 60);
+    return ageHours >= CONFIG.DINNER_REFRESH_HOURS;
+}
+
+/**
+ * Build a recipe search URL from a meal name.
+ */
+function buildRecipeUrl(mealName) {
+    return 'https://www.google.com/search?q=' + encodeURIComponent(mealName + ' recipe');
+}
+
+/**
+ * Push a recipe link notification to a specific device via HA notify service.
+ */
+function pushRecipeToPhone(device, mealName) {
+    var searchUrl = buildRecipeUrl(mealName);
+    var servicePath = device.service.replace('.', '/');
+    return haFetch('services/' + servicePath, 'POST', {
+        message: "Tonight's dinner idea: " + mealName,
+        data: {
+            url: searchUrl,
+            actions: [{ action: "URI", title: "Open Recipe", uri: searchUrl }]
+        }
+    });
+}
+
+/**
+ * Render meal cards into #dinner-content.
+ */
+function renderDinnerPanel(meals) {
+    var fragment = document.createDocumentFragment();
+
+    if (!meals || meals.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'dinner-status';
+        empty.textContent = 'No suggestions yet';
+        fragment.appendChild(empty);
+        dinnerContent.innerHTML = '';
+        dinnerContent.appendChild(fragment);
+        return;
+    }
+
+    for (var i = 0; i < meals.length; i++) {
+        var meal = meals[i];
+        var card = document.createElement('div');
+        card.className = 'dinner-meal';
+
+        var diffClass = (meal.difficulty || 'medium').toLowerCase();
+        if (['easy', 'medium', 'hard'].indexOf(diffClass) === -1) diffClass = 'medium';
+
+        var html =
+            '<div class="dinner-meal-name">' + escapeHtml(meal.name) + '</div>' +
+            '<div class="dinner-meal-meta">' +
+                '<span class="dinner-time"><i data-lucide="clock"></i> ' + (meal.time_minutes || '?') + ' min</span>' +
+                '<span class="dinner-difficulty ' + diffClass + '">' + diffClass + '</span>' +
+            '</div>';
+
+        card.innerHTML = html;
+        fragment.appendChild(card);
+    }
+
+    dinnerContent.innerHTML = '';
+    dinnerContent.appendChild(fragment);
+    lucide.createIcons({ container: dinnerContent });
+}
+
+/**
+ * Simple HTML escaping for user-facing text from Ollama.
+ */
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;');
+}
+
+/**
+ * Main dinner update: read from HA, call Ollama if stale, render.
+ */
+var _dinnerLoading = false;
+
+function updateDinner() {
+    console.log('[Dinner] updateDinner called');
+    readDinnerFromHA().then(function (stored) {
+        console.log('[Dinner] HA stored data:', stored ? 'found (' + (stored.meals ? stored.meals.length : 0) + ' meals, generated: ' + stored.generated_at + ')' : 'null');
+        if (stored && stored.meals && !isDinnerStale(stored.generated_at)) {
+            console.log('[Dinner] Using cached HA data (not stale)');
+            renderDinnerPanel(stored.meals);
+            return;
+        }
+        console.log('[Dinner] Data is stale or missing, will call Ollama');
+
+        // Data is stale or missing — generate new suggestions
+        if (_dinnerLoading) {
+            // Already generating, just render what we have
+            if (stored && stored.meals) {
+                renderDinnerPanel(stored.meals);
+            } else {
+                dinnerContent.innerHTML = '<div class="dinner-status"><div class="spinner"></div> Generating ideas…</div>';
+            }
+            return;
+        }
+
+        _dinnerLoading = true;
+        // Show loading state
+        if (stored && stored.meals) {
+            renderDinnerPanel(stored.meals);
+        } else {
+            dinnerContent.innerHTML = '<div class="dinner-status"><div class="spinner"></div> Asking Ollama…</div>';
+        }
+
+        var prompt = 'Suggest 3 different weeknight dinner meals.\n\n' +
+            'Respond with JSON in EXACTLY this format:\n\n' +
+            '{"meals": [{"name": "Chicken Stir Fry", "difficulty": "easy", "time_minutes": 25}, ' +
+            '{"name": "Beef Tacos", "difficulty": "medium", "time_minutes": 35}, ' +
+            '{"name": "Homemade Lasagna", "difficulty": "hard", "time_minutes": 60}]}\n\n' +
+            'Rules:\n' +
+            '- Return exactly 3 meals in the "meals" array\n' +
+            '- Each meal has exactly 3 fields: "name" (string), "difficulty" ("easy" or "medium" or "hard"), "time_minutes" (number)\n' +
+            '- Suggest different meals than the example above\n' +
+            '- No other fields or text';
+
+        callOllama(prompt).then(function (meals) {
+            _dinnerLoading = false;
+            if (meals && meals.length > 0) {
+                // Validate structure
+                var valid = [];
+                for (var i = 0; i < meals.length; i++) {
+                    var m = meals[i];
+                    if (m.name) {
+                        valid.push({
+                            name: String(m.name),
+                            difficulty: String(m.difficulty || 'medium'),
+                            time_minutes: parseInt(m.time_minutes, 10) || 30
+                        });
+                    }
+                }
+                if (valid.length > 0) {
+                    saveDinnerToHA(valid);
+                    cache.dinner.data = { meals: valid, generated_at: new Date().toISOString() };
+                    cache.dinner.timestamp = Date.now();
+                    renderDinnerPanel(valid);
+                    return;
+                }
+            }
+            // Ollama failed or returned bad data — show stored or error
+            if (stored && stored.meals) {
+                renderDinnerPanel(stored.meals);
+            } else {
+                dinnerContent.innerHTML = '<div class="dinner-status">Could not get suggestions</div>';
+            }
+        });
+    }).catch(function (err) {
+        console.error('Dinner update error:', err);
+        _dinnerLoading = false;
+    });
+}
+
+/* ================================================================== *
+ *  7. HA WebSocket — Real-time Updates
+ * ================================================================== */
+
+/**
+ * Maintains a persistent WebSocket connection to Home Assistant.
+ * Subscribes to state_changed events and triggers the appropriate
+ * refresh when a watched entity changes — no browser reload needed.
+ *
+ * Reconnects automatically on disconnect with exponential backoff.
+ *
+ * Entity watch lists:
+ *   _shoppingEntities — triggers an immediate shopping list cache bust + re-render.
+ *   _dashboardEntities — triggers a full dashboard refresh (weather, forecast,
+ *     calendar, theme).  Includes all CONFIG.CALENDARS entities so any calendar
+ *     change in HA (event added/edited/deleted) triggers a fresh calendar fetch.
+ */
+var _ws = null;
+var _wsMsgId = 0;
+var _wsReconnectDelay = 1000; // ms, doubles on each failure up to 30 s
+var _wsMaxDelay = 30000;
+
+// Entities that should trigger an immediate shopping list refresh
+var _shoppingEntities = {};
+_shoppingEntities[CONFIG.SHOPPING_LIST_ENTITY] = true;
+
+// Entities that should trigger a full dashboard refresh.
+// Calendar entities are included so that when HA fires state_changed
+// for a calendar (e.g. a new event is synced from Google Calendar),
+// fetchCalendarEvents() is called fresh within the next updateDashboard().
+var _dashboardEntities = {};
+_dashboardEntities[CONFIG.WEATHER_ENTITY] = true;
+_dashboardEntities[CONFIG.THEME_ENTITY] = true;
+_dashboardEntities[CONFIG.SCREEN_BLANK_ENTITY] = true;
+_dashboardEntities[CONFIG.THERMOSTAT_ENTITY] = true;
+if (CONFIG.DINNER_ENTITY) {
+    _dashboardEntities[CONFIG.DINNER_ENTITY] = true;
+}
+for (var _ci = 0; _ci < CONFIG.CALENDARS.length; _ci++) {
+    _dashboardEntities[CONFIG.CALENDARS[_ci].entity] = true;
+}
+
+// Debounce helpers — avoid hammering HA when multiple entities change at once
+var _dashboardDebounce = null;
+var _shoppingDebounce = null;
+
+function _debouncedDashboardUpdate() {
+    if (_dashboardDebounce) clearTimeout(_dashboardDebounce);
+    _dashboardDebounce = setTimeout(function () {
+        // Bust relevant caches so we fetch fresh data.
+        // Calendar events have no cache (always fetched fresh), so no bust needed there.
+        cache.weather.timestamp = null;
+        cache.theme.timestamp = null;
+        cache.forecast.timestamp = null;
+        updateDashboard();
+    }, 500);
+}
+
+function _debouncedShoppingUpdate() {
+    if (_shoppingDebounce) clearTimeout(_shoppingDebounce);
+    _shoppingDebounce = setTimeout(function () {
+        cache.shopping.timestamp = null;
+        updateShoppingList();
+    }, 500);
+}
+
+function _wsConnect() {
+    var base = CONFIG.HA_URL || (window.location.protocol + '//' + window.location.host);
+    var wsUrl = base.replace(/^http/, 'ws') + '/api/websocket';
+
+    try {
+        _ws = new WebSocket(wsUrl);
+    } catch (e) {
+        console.error('WebSocket creation failed:', e);
+        _wsScheduleReconnect();
+        return;
+    }
+
+    _ws.onmessage = function (event) {
+        var msg;
+        try { msg = JSON.parse(event.data); } catch (e) { return; }
+
+        switch (msg.type) {
+            case 'auth_required':
+                // HA WebSocket also requires explicit token auth — same rule as REST.
+                _ws.send(JSON.stringify({
+                    type: 'auth',
+                    access_token: CONFIG.HA_TOKEN
+                }));
+                break;
+
+            case 'auth_ok':
+                console.log('WebSocket authenticated');
+                _wsReconnectDelay = 1000; // reset backoff on success
+                // Subscribe to all state_changed events
+                _wsMsgId++;
+                _ws.send(JSON.stringify({
+                    id: _wsMsgId,
+                    type: 'subscribe_events',
+                    event_type: 'state_changed'
+                }));
+                break;
+
+            case 'auth_invalid':
+                console.error('WebSocket auth failed:', msg.message);
+                break;
+
+            case 'event':
+                if (msg.event && msg.event.event_type === 'state_changed') {
+                    var entityId = msg.event.data.entity_id;
+                    if (_shoppingEntities[entityId]) {
+                        _debouncedShoppingUpdate();
+                    }
+                    if (_dashboardEntities[entityId]) {
+                        _debouncedDashboardUpdate();
+                    }
+                }
+                break;
+        }
+    };
+
+    _ws.onclose = function () {
+        console.warn('WebSocket closed, reconnecting in ' + _wsReconnectDelay + 'ms');
+        _wsScheduleReconnect();
+    };
+
+    _ws.onerror = function () {
+        // onclose will fire after this, which handles reconnection
+    };
+}
+
+function _wsScheduleReconnect() {
+    setTimeout(_wsConnect, _wsReconnectDelay);
+    _wsReconnectDelay = Math.min(_wsReconnectDelay * 2, _wsMaxDelay);
+}
+
+// Start the WebSocket connection
+_wsConnect();
+
+/* ================================================================== *
+ *  8. Cursor Hiding (kiosk mode)
  * ================================================================== */
 
 var _hideCursorTimeout;
@@ -814,15 +1331,17 @@ document.addEventListener('mouseleave', function () {
 });
 
 /* ================================================================== *
- *  8. Initialisation
+ *  9. Initialisation
  * ================================================================== */
 
 // Initial calls
 updateClock();
 updateDashboard();
 updateShoppingList();
+updateDinner();
 
 // Recurring intervals
 setInterval(updateClock, 1000);
 setInterval(updateDashboard, 60000);
 setInterval(updateShoppingList, (CONFIG.CACHE_DURATION.shopping || 30) * 1000);
+setInterval(updateDinner, 60 * 60 * 1000); // check hourly, only calls Ollama if stale

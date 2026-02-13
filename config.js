@@ -4,11 +4,14 @@
 const CONFIG = {
 
     // ==================== HOME ASSISTANT CONNECTION ====================
-    HA_URL: "http://192.168.1.113:8123",
+    HA_URL: "",  // empty = use relative URLs (same origin as the page)
     HA_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI0MGZiZTM4NWQ2MGI0YzIwODExZWVhYjExZjZhOWVhNCIsImlhdCI6MTc3MDQ5OTMxMywiZXhwIjoyMDg1ODU5MzEzfQ.o5fivSvhvrgDrrZncOBpq0xx_Le3hpfGDj-A2s0b4jk",
 
     // ==================== WEATHER ====================
     WEATHER_ENTITY: "weather.forecast_home",
+
+    // ==================== INDOOR CLIMATE ====================
+    THERMOSTAT_ENTITY: "climate.my_ecobee",
 
     // ==================== CALENDARS ====================
     CALENDARS: [
@@ -17,35 +20,28 @@ const CONFIG = {
             name: "Devin",
             color_dark: "#51cf66",
             color_light: "#388E3C",
-            priority: 3
+            priority: 1
         },
         {
             entity: "calendar.mearley046_gmail_com",
             name: "Megan",
             color_dark: "#ff6b6b",
             color_light: "#D32F2F",
-            priority: 3
-        },
-        {
-            entity: "calendar.republic_services",
-            name: "Trash",
-            color_dark: "#4a9eff",
-            color_light: "#1976D2",
-            priority: 2
+            priority: 1
         },
         {
             entity: "calendar.holidays_in_united_states",
             name: "Holidays",
             color_dark: "#FFD700",
             color_light: "#DAA520",
-            priority: 2
+            priority: 3
         },
         {
             entity: "calendar.birthdays",
             name: "Birthdays",
-            color_dark: "#E91E63",
-            color_light: "#C2185B",
-            priority: 1
+            color_dark: "#4a9eff",
+            color_light: "#1976D2",
+            priority: 2
         }
     ],
 
@@ -93,6 +89,19 @@ const CONFIG = {
         "Health",
     ],
 
+    // ==================== DINNER SUGGESTIONS ====================
+    OLLAMA_URL: "http://192.168.1.87:11434",
+    OLLAMA_MODEL: "llama3.1",
+    DINNER_REFRESH_HOURS: 24,
+    DINNER_ENTITY: "sensor.dinner_suggestions",
+
+    // ==================== NOTIFICATION DEVICES ====================
+    NOTIFY_DEVICES: [
+        { name: "Devin's Phone", service: "notify.mobile_app_devin_s_phone" },
+        { name: "Megan's Phone", service: "notify.mobile_app_megan_s_phone" },
+        { name: "iPad",          service: "notify.mobile_app_ipad" },
+    ],
+
     // ==================== DISPLAY SETTINGS ====================
     PLANNER_DAYS: 3,
 
@@ -102,5 +111,6 @@ const CONFIG = {
         theme: 300,
         forecast: 300,
         shopping: 30,
+        dinner: 300,
     },
 };
