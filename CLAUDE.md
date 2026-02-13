@@ -1,7 +1,7 @@
 # HAPi-Dashboard (ha-static branch)
 
 ## Overview
-Static web dashboard for Home Assistant, served directly from HA's `www` folder. No backend server — the browser calls the HA REST API directly using a long-lived access token. Designed for dedicated kiosk displays (Raspberry Pi Zero 2 W).
+Static web dashboard for Home Assistant, served directly from HA's `www` folder. No backend server — the browser calls the HA REST API directly using a long-lived access token. Designed for dedicated kiosk displays (Raspberry Pi 3 Model B (1GB RAM)).
 
 ## Architecture
 - `index.html` — Dashboard UI shell, loads config.js, Lucide icons (CDN), and dashboard.js.
@@ -12,7 +12,7 @@ Static web dashboard for Home Assistant, served directly from HA's `www` folder.
 ## Tech Stack
 - **Frontend only:** Vanilla HTML/CSS/JS, Lucide icons (CDN)
 - **API:** Home Assistant REST API (direct browser fetch with Bearer token)
-- **Target:** Raspberry Pi Zero 2 W — optimize for minimal RAM/CPU
+- **Target:** Raspberry Pi 3 Model B (1GB RAM) — optimize for minimal RAM/CPU
 
 ## Key Conventions
 - Configuration lives in `config.js`, not hardcoded in other files

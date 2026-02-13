@@ -1,6 +1,6 @@
 # HAPi Dashboard
 
-A kiosk-style dashboard for Home Assistant, designed for a dedicated display (Raspberry Pi Zero 2 W). No backend server — the browser calls the HA REST API directly.
+A kiosk-style dashboard for Home Assistant, designed for a dedicated display. Intended for low-power hardware like a Raspberry Pi 3 Model B (1GB RAM) — though this is not yet tested in production. No backend server — the browser calls the HA REST API directly.
 
 ![Dashboard Screenshot](dash.png)
 
