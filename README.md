@@ -1,4 +1,6 @@
-# HAPi Dashboard
+Disclaimer: the majority of this code was generated using AI. I used this project as an experiment with claude code with a local LLM.  I am not a profressional web designer, and hardly a professional programmer.  I was happy with what was created, so wanted to share it.  I am not guaranteeing it works, and will not provide support for this outside of my own needs.  With that said, it may still be a great place for you to start with a fully customized dashboard.
+
+# HAPi (Home Assistant Pi) Dashboard
 
 A kiosk-style dashboard for Home Assistant, designed for a dedicated display. Intended for low-power hardware like a Raspberry Pi 3 Model B (1GB RAM) — though this is not yet tested in production. No backend server — the browser calls the HA REST API directly.
 
