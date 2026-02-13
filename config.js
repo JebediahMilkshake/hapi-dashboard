@@ -89,9 +89,9 @@ const CONFIG = {
         "Health",
     ],
 
-    // ==================== DINNER SUGGESTIONS ====================
-    OLLAMA_URL: "http://192.168.1.87:11434",
-    OLLAMA_MODEL: "llama3.1",
+    // ==================== DINNER SUGGESTIONS (LLM) ====================
+    LLM_URL: "http://192.168.1.87:11434",
+    LLM_MODEL: "llama3.1",
     DINNER_REFRESH_HOURS: 24,
     DINNER_ENTITY: "sensor.dinner_suggestions",
 

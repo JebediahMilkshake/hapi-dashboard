@@ -909,16 +909,16 @@ function updateShoppingList() {
 }
 
 /* ================================================================== *
- *  6b. Dinner Suggestions (Ollama + HA persistence)
+ *  6b. Dinner Suggestions (LLM + HA persistence)
  * ================================================================== */
 
 /**
- * Call the Ollama API to generate dinner suggestions.
+ * Call the LLM API to generate dinner suggestions.
  * Returns parsed JSON array of meal objects, or null on failure.
  */
-function callOllama(prompt) {
-    var url = CONFIG.OLLAMA_URL + '/api/generate';
-    console.log('[Dinner] Calling Ollama at: ' + url);
+function callLLM(prompt) {
+    var url = CONFIG.LLM_URL + '/api/generate';
+    console.log('[Dinner] Calling LLM at:' + url);
     var controller = new AbortController();
     var timeoutId = setTimeout(function () { controller.abort(); }, 60000);
 
@@ -927,7 +927,7 @@ function callOllama(prompt) {
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-            model: CONFIG.OLLAMA_MODEL,
+            model: CONFIG.LLM_MODEL,
             prompt: prompt,
             stream: false,
             format: 'json'
@@ -935,10 +935,10 @@ function callOllama(prompt) {
     })
     .then(function (response) {
         clearTimeout(timeoutId);
-        console.log('[Dinner] Ollama HTTP status: ' + response.status);
+        console.log('[Dinner] LLM HTTP status:' + response.status);
         if (!response.ok) {
             return response.text().then(function (t) {
-                console.warn('[Dinner] Ollama error body: ' + t);
+                console.warn('[Dinner] LLM error body:' + t);
                 return null;
             });
         }
@@ -946,28 +946,28 @@ function callOllama(prompt) {
     })
     .then(function (data) {
         if (!data || !data.response) {
-            console.warn('[Dinner] Ollama returned no response field:', data);
+            console.warn('[Dinner] LLM returned no response field:', data);
             return null;
         }
-        console.log('[Dinner] Ollama raw response: ' + data.response.substring(0, 500));
+        console.log('[Dinner] LLM raw response:' + data.response.substring(0, 500));
         try {
             var parsed = JSON.parse(data.response);
             // Accept either {meals: [...]} or direct [...]
             if (Array.isArray(parsed)) return parsed;
             if (parsed.meals && Array.isArray(parsed.meals)) return parsed.meals;
-            console.warn('[Dinner] Ollama JSON has no meals array:', parsed);
+            console.warn('[Dinner] LLM JSON has no meals array:', parsed);
             return null;
         } catch (e) {
-            console.error('[Dinner] Ollama JSON parse error:', e, data.response);
+            console.error('[Dinner] LLM JSON parse error:', e, data.response);
             return null;
         }
     })
     .catch(function (err) {
         clearTimeout(timeoutId);
         if (err.name === 'AbortError') {
-            console.error('[Dinner] Ollama timeout (60s)');
+            console.error('[Dinner] LLM timeout (60s)');
         } else {
-            console.error('[Dinner] Ollama fetch error:', err.message || err);
+            console.error('[Dinner] LLM fetch error:', err.message || err);
         }
         return null;
     });
@@ -1085,7 +1085,7 @@ function renderDinnerPanel(meals) {
 }
 
 /**
- * Simple HTML escaping for user-facing text from Ollama.
+ * Simple HTML escaping for user-facing text from LLM.
  */
 function escapeHtml(str) {
     if (!str) return '';
@@ -1094,7 +1094,7 @@ function escapeHtml(str) {
 }
 
 /**
- * Main dinner update: read from HA, call Ollama if stale, render.
+ * Main dinner update: read from HA, call LLM if stale, render.
  */
 var _dinnerLoading = false;
 
@@ -1107,7 +1107,7 @@ function updateDinner() {
             renderDinnerPanel(stored.meals);
             return;
         }
-        console.log('[Dinner] Data is stale or missing, will call Ollama');
+        console.log('[Dinner] Data is stale or missing, will call LLM');
 
         // Data is stale or missing — generate new suggestions
         if (_dinnerLoading) {
@@ -1125,7 +1125,7 @@ function updateDinner() {
         if (stored && stored.meals) {
             renderDinnerPanel(stored.meals);
         } else {
-            dinnerContent.innerHTML = '<div class="dinner-status"><div class="spinner"></div> Asking Ollama…</div>';
+            dinnerContent.innerHTML = '<div class="dinner-status"><div class="spinner"></div> Generating ideas…</div>';
         }
 
         var prompt = 'Suggest 3 different weeknight dinner meals.\n\n' +
@@ -1139,7 +1139,7 @@ function updateDinner() {
             '- Suggest different meals than the example above\n' +
             '- No other fields or text';
 
-        callOllama(prompt).then(function (meals) {
+        callLLM(prompt).then(function (meals) {
             _dinnerLoading = false;
             if (meals && meals.length > 0) {
                 // Validate structure
@@ -1162,7 +1162,7 @@ function updateDinner() {
                     return;
                 }
             }
-            // Ollama failed or returned bad data — show stored or error
+            // LLM failed or returned bad data — show stored or error
             if (stored && stored.meals) {
                 renderDinnerPanel(stored.meals);
             } else {
@@ -1344,4 +1344,4 @@ updateDinner();
 setInterval(updateClock, 1000);
 setInterval(updateDashboard, 60000);
 setInterval(updateShoppingList, (CONFIG.CACHE_DURATION.shopping || 30) * 1000);
-setInterval(updateDinner, 60 * 60 * 1000); // check hourly, only calls Ollama if stale
+setInterval(updateDinner, 60 * 60 * 1000); // check hourly, only calls LLM if stale
