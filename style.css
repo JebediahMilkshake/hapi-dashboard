@@ -56,6 +56,7 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 0.5vmin; /* Tighter than before — more vertical room for grocery/dinner */
+    overflow: hidden; /* Contain children — prevent dinner from escaping viewport */
 }
 
 #clock-section {
@@ -237,10 +238,11 @@ html, body {
 }
 
 /* ── Dinner Section ───────────────────────────────────────────────── */
-/* flex: 0 1 auto — sizes to content but can shrink if sidebar is short.
+/* flex: 0 0 auto — docked to the bottom, sizes to content, never shrinks.
+   Grocery list above it absorbs any vertical pressure instead.
    max-height: 30vh caps it so it never crowds the grocery list above. */
 #dinner-section {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     max-height: 30vh;
     background: var(--bg-panel);
     border-radius: 1vmin;
