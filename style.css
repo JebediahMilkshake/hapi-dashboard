@@ -253,7 +253,7 @@ html, body {
 
 #dinner-heading {
     color: var(--accent);
-    font-size: 2.4vmin;
+    font-size: 2.0vmin;
     font-weight: 600;
     padding-bottom: 0.5vmin;
     border-bottom: 1px solid var(--border);
@@ -430,11 +430,6 @@ body.light-theme .dinner-difficulty.hard {
     color: var(--text-dim);
 }
 
-#weather-humidity svg {
-    width: 2.4vmin;
-    height: 2.4vmin;
-    stroke: var(--accent);
-}
 
 #forecast-grid {
     flex-grow: 1;

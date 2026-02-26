@@ -197,11 +197,11 @@ function fetchIndoorClimate() {
 }
 
 /**
- * Calculate the start and end dates for the 6-week calendar grid.
+ * Calculate the start and end dates for the 5-week calendar grid.
  *
- * The grid always shows 42 cells (6 rows x 7 cols).  Row 0 starts on the
+ * The grid always shows 35 cells (5 rows x 7 cols).  Row 0 starts on the
  * Sunday on or before the 1st of the current month, and the grid ends
- * exactly 42 days later.  These dates are used both to render the grid cells
+ * exactly 35 days later.  These dates are used both to render the grid cells
  * and to determine the fetch window for calendar events so every visible
  * cell can show events — no more, no less.
  *
@@ -216,16 +216,16 @@ function calcGridDateRange(now) {
     var gridStart = new Date(firstOfMonth);
     gridStart.setDate(firstOfMonth.getDate() - firstOfMonth.getDay());
 
-    // Exclusive end: day after the 42nd cell
+    // Exclusive end: day after the 35th cell
     var gridEnd = new Date(gridStart);
-    gridEnd.setDate(gridStart.getDate() + 42);
+    gridEnd.setDate(gridStart.getDate() + 35);
 
     return { gridStart: gridStart, gridEnd: gridEnd };
 }
 
 /**
  * Fetch calendar events for all configured calendars, covering the exact
- * 6-week grid window so every visible cell can render its events.
+ * 5-week grid window so every visible cell can render its events.
  *
  * Events are always fetched fresh (no cache) because they change frequently
  * and there is no server-side cache invalidation mechanism for calendars.
@@ -238,8 +238,8 @@ function calcGridDateRange(now) {
  * data is always up to date after a WebSocket-triggered refresh.
  *
  * @param {boolean} isDark     Current theme — selects color_dark or color_light.
- * @param {Date}    gridStart  First day of the 6-week grid (from calcGridDateRange).
- * @param {Date}    gridEnd    Exclusive end date of the 6-week grid.
+ * @param {Date}    gridStart  First day of the 5-week grid (from calcGridDateRange).
+ * @param {Date}    gridEnd    Exclusive end date of the 5-week grid.
  * @returns {Promise<Array>}   Flat array of event objects with color & priority attached.
  */
 function fetchCalendarEvents(isDark, gridStart, gridEnd) {
@@ -409,7 +409,6 @@ var connectionWarning = document.getElementById('connection-warning');
 var weatherMainIcon   = document.getElementById('weather-main-icon');
 var weatherTemp       = document.getElementById('weather-temp');
 var weatherCondition  = document.getElementById('weather-condition');
-var weatherHumidity   = document.getElementById('weather-humidity');
 var weatherPrecip     = document.getElementById('weather-precip');
 var forecastGrid      = document.getElementById('forecast-grid');
 var groceryList       = document.getElementById('grocery-list');
@@ -657,19 +656,11 @@ function updateDashboard() {
                 weatherCondition.textContent = 'UNAVAILABLE';
             }
 
-            // ── Outdoor Humidity ───────────────────────────────────
-            if (weather && weather.attributes && weather.attributes.humidity != null) {
-                weatherHumidity.innerHTML =
-                    '<i data-lucide="droplets"></i> ' + Math.round(weather.attributes.humidity) + '%';
-                lucide.createIcons({ container: weatherHumidity });
-            } else {
-                weatherHumidity.textContent = '';
-            }
-
             // ── Precipitation Probability ─────────────────────────
-            if (weather && weather.attributes && weather.attributes.precipitation_probability != null) {
+            var precip = weather && weather.attributes ? weather.attributes.precipitation_probability : null;
+            if (weather && weather.attributes && precip != null && precip > 0) {
                 weatherPrecip.innerHTML =
-                    '<i data-lucide="cloud-rain"></i> ' + Math.round(weather.attributes.precipitation_probability) + '%';
+                    '<i data-lucide="cloud-rain"></i> ' + Math.round(precip) + '%';
                 lucide.createIcons({ container: weatherPrecip });
             } else {
                 weatherPrecip.textContent = '';
@@ -716,7 +707,7 @@ function updateDashboard() {
                         '<div class="f-temp"><span class="f-hi">' + hi + '\u00B0</span>' +
                         (lo != null ? '<span class="f-lo">' + lo + '\u00B0</span>' : '') +
                         '</div>';
-                    if (precip != null) {
+                    if (precip != null && precip > 0) {
                         html += '<div class="f-precip">' + precip + '%</div>';
                     }
                     fDiv.innerHTML = html;
@@ -743,7 +734,7 @@ function updateDashboard() {
             }
 
             var startDate = gridRange.gridStart;
-            var totalCells = 42; // 6 weeks x 7 days
+            var totalCells = 35; // 5 weeks x 7 days
             monthHeader.textContent = now.toLocaleDateString('default', {
                 month: 'long',
                 year: 'numeric'
