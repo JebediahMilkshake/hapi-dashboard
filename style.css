@@ -506,7 +506,7 @@ body.light-theme .dinner-difficulty.hard {
 #grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    grid-template-rows: auto repeat(6, 1fr); /* 6 rows for weeks + header */
+    grid-template-rows: auto repeat(5, 1fr); /* 5 rows for weeks + header */
     gap: 0.5vmin;
     flex-grow: 1;
 }
