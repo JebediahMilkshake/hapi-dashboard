@@ -903,6 +903,37 @@ function updateShoppingList() {
  *  6b. Dinner Suggestions (LLM + HA persistence)
  * ================================================================== */
 
+/** Return Easter Sunday for the given year (Gregorian algorithm). */
+function getEaster(year) {
+    var a = year % 19;
+    var b = Math.floor(year / 100);
+    var c = year % 100;
+    var d = Math.floor(b / 4);
+    var e = b % 4;
+    var f = Math.floor((b + 8) / 25);
+    var g = Math.floor((b - f + 1) / 3);
+    var h = (19 * a + b - d - g + 15) % 30;
+    var i = Math.floor(c / 4);
+    var k = c % 4;
+    var l = (32 + 2 * e + 2 * i - h - k) % 7;
+    var m = Math.floor((a + 11 * h + 22 * l) / 451);
+    var month = Math.floor((h + l - 7 * m + 114) / 31);
+    var day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
+}
+
+/** Return true if date is a Friday during Lent (Ash Wednesday through Holy Saturday). */
+function isFridayDuringLent(date) {
+    if (date.getDay() !== 5) return false;
+    var easter = getEaster(date.getFullYear());
+    var ashWed = new Date(easter); ashWed.setDate(ashWed.getDate() - 46);
+    var holySat = new Date(easter); holySat.setDate(holySat.getDate() - 1);
+    var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    var start = new Date(ashWed.getFullYear(), ashWed.getMonth(), ashWed.getDate());
+    var end = new Date(holySat.getFullYear(), holySat.getMonth(), holySat.getDate());
+    return d >= start && d <= end;
+}
+
 /**
  * Call the LLM API to generate dinner suggestions.
  * Returns parsed JSON array of meal objects, or null on failure.
@@ -911,7 +942,7 @@ function callLLM(prompt) {
     var url = CONFIG.LLM_URL + '/api/generate';
     console.log('[Dinner] Calling LLM at:' + url);
     var controller = new AbortController();
-    var timeoutId = setTimeout(function () { controller.abort(); }, 60000);
+    var timeoutId = setTimeout(function () { controller.abort(); }, 120000);
 
     return fetch(url, {
         method: 'POST',
@@ -956,7 +987,7 @@ function callLLM(prompt) {
     .catch(function (err) {
         clearTimeout(timeoutId);
         if (err.name === 'AbortError') {
-            console.error('[Dinner] LLM timeout (60s)');
+            console.error('[Dinner] LLM timeout (120s)');
         } else {
             console.error('[Dinner] LLM fetch error:', err.message || err);
         }
@@ -1119,7 +1150,20 @@ function updateDinner() {
             dinnerContent.innerHTML = '<div class="dinner-status"><div class="spinner"></div> Generating ideas…</div>';
         }
 
-        var prompt = 'Suggest 3 different weeknight dinner meals.\n\n' +
+        var today = new Date();
+        var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        var dateStr = dayNames[today.getDay()] + ', ' + monthNames[today.getMonth()] + ' ' + today.getDate() + ', ' + today.getFullYear();
+
+        var previousNames = (stored && stored.meals) ? stored.meals.map(function(m) { return m.name; }) : [];
+        var avoidLine = previousNames.length > 0
+            ? '- Do not suggest any of these meals from last time: ' + previousNames.join(', ') + '\n'
+            : '';
+        var lentLine = isFridayDuringLent(today)
+            ? '- No meat today (Friday during Lent); fish, seafood, and vegetarian meals only\n'
+            : '';
+
+        var prompt = 'Suggest 3 different weeknight dinner meals for ' + dateStr + '.\n\n' +
             'Respond with JSON in EXACTLY this format:\n\n' +
             '{"meals": [{"name": "Chicken Stir Fry", "difficulty": "easy", "time_minutes": 25}, ' +
             '{"name": "Beef Tacos", "difficulty": "medium", "time_minutes": 35}, ' +
@@ -1128,6 +1172,8 @@ function updateDinner() {
             '- Return exactly 3 meals in the "meals" array\n' +
             '- Each meal has exactly 3 fields: "name" (string), "difficulty" ("easy" or "medium" or "hard"), "time_minutes" (number)\n' +
             '- Suggest different meals than the example above\n' +
+            lentLine +
+            avoidLine +
             '- No other fields or text';
 
         callLLM(prompt).then(function (meals) {

@@ -90,8 +90,8 @@ const CONFIG = {
     ],
 
     // ==================== DINNER SUGGESTIONS (LLM) ====================
-    LLM_URL: "http://192.168.1.87:11434",
-    LLM_MODEL: "llama3.1",
+    LLM_URL: "http://192.168.72.217:11434",
+    LLM_MODEL: "PetrosStav/gemma3-tools:12b",
     DINNER_REFRESH_HOURS: 24,
     DINNER_ENTITY: "sensor.dinner_suggestions",
 
